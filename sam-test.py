@@ -1,7 +1,7 @@
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 import cv2
+import time
 
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
@@ -94,8 +94,12 @@ for i, (mask, score) in enumerate(zip(masks, scores)):
     show_points(input_points, input_labels, plt.gca())
     plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
     plt.axis('on')
+
     plt.figure()
     plt.imshow(mask)
+
+    # file = open("temp\\" + str(time.time()) + ".json", "w")
+    np.savetxt("temp\\" + str(time.time()), mask, fmt='%.0f')
 
 plt.show()
 
