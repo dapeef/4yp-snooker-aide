@@ -10,9 +10,10 @@ mask = np.uint8(np.loadtxt(file_name))
 plt.figure()
 plt.imshow(mask)
 
-# Detect edges
-low_threshold = 0.33
-high_threshold = .66
+sigma = 0.33
+v = np.median(mask)
+low_threshold = int(max(0, (1.0 - sigma) * v))
+high_threshold = int(min(255, (1.0 + sigma) * v))
 edges = cv2.Canny(mask, low_threshold, high_threshold)
 plt.figure()
 plt.imshow(edges)
@@ -28,6 +29,13 @@ max_line_gap = 20  # maximum gap in pixels between connectable line segments
 # Output "lines" is an array containing endpoints of detected line segments
 lines = cv2.HoughLinesP(edges, rho, theta, threshold, np.array([]),
                     min_line_length, max_line_gap)
-print(lines)
+
+# Loop though the lines and draw them
+# plt.figure()
+# plt.xlim(0, )
+for i in range(len(lines)):
+    for x1,y1,x2,y2 in lines[i]:
+        plt.plot([x1, x2], [y1, y2], color="green", linewidth=2)
+        # plt.plot([200, 500], [200, 500], color="green", linewidth=2)
 
 plt.show()
