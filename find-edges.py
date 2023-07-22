@@ -58,6 +58,14 @@ def plotLinesPolar(lines, image_shape):
 
             plt.plot([x1, x2], [y1, y2], color="green", linewidth=2)
 
+def addRho(lines, padding):
+    padded_lines = np.copy(lines)
+    for i in range(len(padded_lines)):
+        r = padded_lines[i][0][0]
+        padded_lines[i][0][0] = r + r/abs(r) * padding
+
+    return padded_lines
+
 
 # Get lines for SAM mask
 file_name = os.path.join("temp", os.listdir("temp")[-1])
@@ -65,10 +73,12 @@ file_name = os.path.join("temp", os.listdir("temp")[-1])
 mask = np.uint8(np.loadtxt(file_name))
 edges = edge(mask)
 lines = line_hough(edges)[:4]
+padded_lines = addRho(lines, 10)
 
 plt.figure()
 plt.imshow(mask)
 plotLinesPolar(lines, mask.shape)
+plotLinesPolar(padded_lines, mask.shape)
 
 
 # Get lines for original image
