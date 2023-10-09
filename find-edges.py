@@ -101,6 +101,33 @@ def enlarge(mask, size_increase):
 
     return mask
 
+def line_mask(rho, theta, thickness, image_size):
+    mask = np.zeros(image_size, dtype=np.uint8)
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+
+    # Calculate the line endpoints based on the diagonal length of the image
+    line_length = int(np.sqrt(image_size[0]**2 + image_size[1]**2))
+    x0 = rho * cos_theta
+    y0 = rho * sin_theta
+    x1 = int(x0 - line_length * (-sin_theta))
+    y1 = int(y0 - line_length * (cos_theta))
+    x2 = int(x0 + line_length * (-sin_theta))
+    y2 = int(y0 + line_length * (cos_theta))
+
+    cv2.line(mask, (x1, y1), (x2, y2), 255, thickness)
+
+    return mask
+
+def dilated_line_mask(line, thickness, image_size):
+    rho, theta = line[0]
+
+    mask = line_mask(rho, theta, image_size)
+
+    mask = dilate(mask, thickness)
+
+    return mask
+
 def getIntersectionPolar(line1, line2):
     # Get the intersection of two rho-theta lines
 
@@ -131,6 +158,7 @@ mask = np.uint8(np.loadtxt(file_name))
 dilated_mask = enlarge(mask, 10)
 edges = edge(mask)
 lines = line_hough(edges)[:4]
+dilated_line = line_mask(lines[0][0][0], lines[0][0][1], 20, mask.shape)
 # sorted_lines = np.array(sorted(lines.tolist(), key=lambda line: line[0][1])) # Sort lines by theta value
 # sorted_lines = sorted_lines[[0, 2, 1, 3]]
 padded_lines = addRho(lines, 20)
@@ -159,7 +187,7 @@ image = cv2.imread(image_file)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 # Mask image with dilated SAM mask
-image = cv2.bitwise_and(image, image, mask=dilated_mask)
+image = cv2.bitwise_and(image, image, mask=dilated_line)
 cv2.imwrite("masked.png", image)
 
 edges = edge(image)
