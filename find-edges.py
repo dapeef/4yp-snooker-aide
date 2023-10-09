@@ -6,8 +6,8 @@ import os
 
 
 def edge(image):
-    sigma = 0.33
-    v = np.median(image)
+    sigma = .33
+    v = np.mean(image)
     low_threshold = int(max(0, (1.0 - sigma) * v))
     high_threshold = int(min(255, (1.0 + sigma) * v))
     edges = cv2.Canny(image, low_threshold, high_threshold)
@@ -59,14 +59,47 @@ def plotLinesPolar(lines, image_shape, line_color="green"):
             plt.plot([x1, x2], [y1, y2], color=line_color, linewidth=2)
 
 def addRho(lines, padding):
-    padded_lines = np.copy(lines)
-    # print(padded_lines)
-    # print(np.array(sorted(padded_lines.tolist(), key=lambda line: line[0][1]))) # Sort lines by theta value
-    for i in range(len(padded_lines)):
-        r = padded_lines[i][0][0]
-        padded_lines[i][0][0] = r + r/abs(r) * padding
+    sorted_lines = np.array(sorted(lines.tolist(), key=lambda line: line[0][1])) # Sort lines by theta value
+    lines = sorted_lines[[0, 2, 1, 3]]
+    
+    # for i in range(len(padded_lines)):
+    #     r = padded_lines[i][0][0]
+    #     padded_lines[i][0][0] = r + r/abs(r) * padding
 
-    return padded_lines
+    # return padded_lines
+
+def circular_kernel(diameter):
+    """
+    Create a circular kernel with a given diameter.
+
+    Parameters:
+        diameter (int): Diameter of the circle.
+
+    Returns:
+        numpy.ndarray: Circular kernel with a diameter, dtype=np.uint8.
+    """
+    radius = diameter / 2
+    kernel = np.zeros((diameter, diameter), dtype=np.uint8)
+    y, x = np.ogrid[:diameter, :diameter]
+    distance_from_center = np.sqrt((x - radius)**2 + (y - radius)**2)
+    kernel[distance_from_center <= radius] = 1  # Set True to 1 (np.uint8)
+    return kernel
+
+def dilate(mask, size_increase, iterations=1):
+    kernel = circular_kernel(size_increase)
+
+    return cv2.dilate(mask, kernel, iterations=iterations)
+
+def erode(mask, size_increase, iterations=1):
+    kernel = circular_kernel(size_increase)
+
+    return cv2.erode(mask, kernel, iterations=iterations)
+
+def enlarge(mask, size_increase):
+    mask = erode(mask, size_increase)
+    mask = dilate(mask, size_increase, 5)
+
+    return mask
 
 def getIntersectionPolar(line1, line2):
     # Get the intersection of two rho-theta lines
@@ -95,18 +128,29 @@ def getIntersectionPolar(line1, line2):
 file_name = os.path.join("temp", os.listdir("temp")[-1])
 
 mask = np.uint8(np.loadtxt(file_name))
+dilated_mask = enlarge(mask, 10)
 edges = edge(mask)
 lines = line_hough(edges)[:4]
+# sorted_lines = np.array(sorted(lines.tolist(), key=lambda line: line[0][1])) # Sort lines by theta value
+# sorted_lines = sorted_lines[[0, 2, 1, 3]]
 padded_lines = addRho(lines, 20)
 x = getIntersectionPolar(lines[0], lines[1])
 
 
 plt.figure("SAM mask")
 plt.title("SAM mask")
-plt.imshow(mask)
+plt.imshow(edges)
 plotLinesPolar(lines, mask.shape)
-plotLinesPolar(padded_lines, mask.shape, "red")
+# plotLinesPolar(sorted_lines[:3], mask.shape, "red")
 plt.plot(x[0], x[1], "b+")
+
+
+plt.figure("Dilated SAM mask")
+plt.title("Dilated SAM mask")
+plt.imshow(dilated_mask)
+plotLinesPolar(lines, dilated_mask.shape)
+
+
 
 
 # Get lines for original image
@@ -114,11 +158,15 @@ image_file = "images\\snooker1.png"
 image = cv2.imread(image_file)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
+# Mask image with dilated SAM mask
+image = cv2.bitwise_and(image, image, mask=dilated_mask)
+cv2.imwrite("masked.png", image)
+
 edges = edge(image)
 lines = line_hough(edges)[:10]
 
 plt.figure("Hough on original image")
-plt.imshow(image)
+plt.imshow(edges)
 plotLinesPolar(lines, image.shape)
 
 
