@@ -42,87 +42,97 @@ def show_anns(anns):
     ax.imshow(img)
 
 
-# SAM setup
-print("Loading SAM...")
-# sam_checkpoint = "checkpoints\\sam_vit_b_01ec64.pth" # For base model
-# model_type = "vit_b" # For base model
-sam_checkpoint = "checkpoints\\sam_vit_h_4b8939.pth" # For huge model
-model_type = "vit_h" # For huge model
-device = "cpu" # "cuda" #if access to cuda -> torch.cuda.is_available()
 
-sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-sam.to(device)
+def create_mask(image_file, input_points, input_labels):
+    # SAM setup
+    print("Loading SAM...")
+    # sam_checkpoint = "checkpoints\\sam_vit_b_01ec64.pth" # For base model
+    # model_type = "vit_b" # For base model
+    sam_checkpoint = "checkpoints\\sam_vit_h_4b8939.pth" # For huge model
+    model_type = "vit_h" # For huge model
+    device = "cpu" # "cuda" #if access to cuda -> torch.cuda.is_available()
 
-print("SAM loaded!")
+    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+    sam.to(device)
 
-
-
-# Load image
-image_file = "images\\snooker1.png"
-# image_file = "images\\snooker2.jpg"
-image = cv2.imread(image_file)
-image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-# Show image
-plt.figure(figsize=(10,10))
-plt.imshow(image)
-plt.axis('on')
-# plt.show()
-
-print("Image loaded!")
+    print("SAM loaded!")
 
 
-# SAM predictor
-predictor = SamPredictor(sam)
-predictor.set_image(image)
 
-print("Image embedded!")
-
-# Prompts
-#snooker1.png
-input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
-input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
-# #snooker2.jpg
-# input_points = np.array([[2000, 1500]]) 
-# input_labels = np.array([1]) # 1=foreground, 0=background
-
-show_points(input_points, input_labels, plt.gca())
-masks, scores, logits = predictor.predict(
-    point_coords=input_points,
-    point_labels=input_labels,
-    multimask_output=False,
-)
-
-print("Masks created!")
-
-for i, (mask, score) in enumerate(zip(masks, scores)):
+    # Load image
+    # image_file = "images\\snooker1.png"
+    # image_file = "images\\snooker2.jpg"
+    image = cv2.imread(image_file)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # Show image
     plt.figure(figsize=(10,10))
     plt.imshow(image)
-    show_mask(mask, plt.gca())
-    show_points(input_points, input_labels, plt.gca())
-    plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
     plt.axis('on')
+    # plt.show()
 
-    plt.figure()
-    plt.imshow(mask)
+    print("Image loaded!")
 
-    # file = open("temp\\" + str(time.time()) + ".json", "w")
-    np.savetxt("temp\\" + str(time.time()), mask, fmt='%.0f')
 
-plt.show()
+    # SAM predictor
+    predictor = SamPredictor(sam)
+    predictor.set_image(image)
 
-# # Auto mask generator
-# mask_generator = SamAutomaticMaskGenerator(sam)
-# masks = mask_generator.generate(image)
+    print("Image embedded!")
 
-# print(masks)
+    # Prompts
+    # #snooker1.png
+    # input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
+    # input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
+    # #snooker2.jpg
+    # input_points = np.array([[2000, 1500]]) 
+    # input_labels = np.array([1]) # 1=foreground, 0=background
 
-# print("Masks generated!")
+    show_points(input_points, input_labels, plt.gca())
+    masks, scores, logits = predictor.predict(
+        point_coords=input_points,
+        point_labels=input_labels,
+        multimask_output=False,
+    )
 
-# # Show masks
-# plt.figure(figsize=(20,20))
-# plt.imshow(image)
-# show_anns(masks)
-# plt.axis('on')
+    print("Masks created!")
 
-plt.show()
+    for i, (mask, score) in enumerate(zip(masks, scores)):
+        plt.figure(figsize=(10,10))
+        plt.imshow(image)
+        show_mask(mask, plt.gca())
+        show_points(input_points, input_labels, plt.gca())
+        plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
+        plt.axis('on')
 
+        plt.figure()
+        plt.imshow(mask)
+
+        # file = open("temp\\" + str(time.time()) + ".json", "w")
+        np.savetxt("temp\\" + str(time.time()), mask, fmt='%.0f')
+
+    plt.show()
+
+    # # Auto mask generator
+    # mask_generator = SamAutomaticMaskGenerator(sam)
+    # masks = mask_generator.generate(image)
+
+    # print(masks)
+
+    # print("Masks generated!")
+
+    # # Show masks
+    # plt.figure(figsize=(20,20))
+    # plt.imshow(image)
+    # show_anns(masks)
+    # plt.axis('on')
+
+    # plt.show()
+
+
+if __name__ == "__main__":
+    image_file = "images\\snooker1.png"
+    
+    input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
+    input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
+
+    create_mask(image_file, input_points, input_labels)

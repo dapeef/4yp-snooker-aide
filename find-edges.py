@@ -172,61 +172,62 @@ def getIntersectionPolar(line1, line2):
 
     return x
 
+def get_edges(image_file, mask_file=""):
+    # Get lines for SAM mask
+    if mask_file == "":
+        mask_file = os.path.join("temp", os.listdir("temp")[-1])
 
-# Get lines for SAM mask
-file_name = os.path.join("temp", os.listdir("temp")[-1])
-
-mask = np.uint8(np.loadtxt(file_name))
-dilated_mask = enlarge(mask, 10)
-edges = edge(mask)
-lines = line_hough(edges)[:4]
-dilated_line = line_mask(lines[0][0][0], lines[0][0][1], 20, mask.shape)
-# sorted_lines = np.array(sorted(lines.tolist(), key=lambda line: line[0][1])) # Sort lines by theta value
-# sorted_lines = sorted_lines[[0, 2, 1, 3]]
-# padded_lines = addRho(lines, 20)
-# x = getIntersectionPolar(lines[0], lines[1])
-
-
-plt.figure("SAM mask")
-plt.title("SAM mask")
-plt.imshow(mask)
-plotLinesPolar(lines, mask.shape)
-# plotLinesPolar(sorted_lines[:3], mask.shape, "red")
-# plt.plot(x[0], x[1], "b+")
+    mask = np.uint8(np.loadtxt(mask_file))
+    dilated_mask = enlarge(mask, 10)
+    edges = edge(mask)
+    lines = line_hough(edges)[:4]
+    dilated_line = line_mask(lines[0][0][0], lines[0][0][1], 20, mask.shape)
+    # sorted_lines = np.array(sorted(lines.tolist(), key=lambda line: line[0][1])) # Sort lines by theta value
+    # sorted_lines = sorted_lines[[0, 2, 1, 3]]
+    # padded_lines = addRho(lines, 20)
+    # x = getIntersectionPolar(lines[0], lines[1])
 
 
-plt.figure("Dilated SAM mask")
-plt.title("Dilated SAM mask")
-plt.imshow(dilated_mask)
-plotLinesPolar(lines, dilated_mask.shape)
-
-sam_lines = lines
-
-
-# Get lines for original image
-image_file = "images\\snooker1.png"
-# image_file = "images\\snooker2.jpg"
-image = cv2.imread(image_file)
-image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-# Mask image with dilated SAM mask
-image = cv2.bitwise_and(image, image, mask=dilated_mask)
-# cv2.imwrite("masked.png", image)
-
-edges = edge(image)
-lines = line_hough(edges) #[:10]
-
-lines = filter_lines_multiple(lines, sam_lines, 5, 1/360*np.pi)
-
-plt.figure("Hough on original image, informed by SAM lines")
-plt.title("Hough on original image, informed by SAM lines")
-plt.imshow(image)
-plotLinesPolar(lines, image.shape, "red")
+    plt.figure("SAM mask")
+    plt.title("SAM mask")
+    plt.imshow(mask)
+    plotLinesPolar(lines, mask.shape)
+    # plotLinesPolar(sorted_lines[:3], mask.shape, "red")
+    # plt.plot(x[0], x[1], "b+")
 
 
-# plt.figure()
-# plt.imshow(edges)
+    plt.figure("Dilated SAM mask")
+    plt.title("Dilated SAM mask")
+    plt.imshow(dilated_mask)
+    plotLinesPolar(lines, dilated_mask.shape)
 
-print(sam_lines - lines)
+    sam_lines = lines
 
-plt.show()
+
+    # Get lines for original image
+    image_file = "images\\snooker1.png"
+    # image_file = "images\\snooker2.jpg"
+    image = cv2.imread(image_file)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Mask image with dilated SAM mask
+    image = cv2.bitwise_and(image, image, mask=dilated_mask)
+    # cv2.imwrite("masked.png", image)
+
+    edges = edge(image)
+    lines = line_hough(edges) #[:10]
+
+    lines = filter_lines_multiple(lines, sam_lines, 5, 1/360*np.pi)
+
+    plt.figure("Hough on original image, informed by SAM lines")
+    plt.title("Hough on original image, informed by SAM lines")
+    plt.imshow(image)
+    plotLinesPolar(lines, image.shape, "red")
+
+
+    # plt.figure()
+    # plt.imshow(edges)
+
+    print(sam_lines - lines)
+
+    # plt.show()
