@@ -205,6 +205,7 @@ sam_lines = lines
 
 # Get lines for original image
 image_file = "images\\snooker1.png"
+# image_file = "images\\snooker2.jpg"
 image = cv2.imread(image_file)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 

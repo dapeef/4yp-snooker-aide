@@ -43,6 +43,7 @@ def show_anns(anns):
 
 
 # SAM setup
+print("Loading SAM...")
 # sam_checkpoint = "checkpoints\\sam_vit_b_01ec64.pth" # For base model
 # model_type = "vit_b" # For base model
 sam_checkpoint = "checkpoints\\sam_vit_h_4b8939.pth" # For huge model
@@ -58,6 +59,7 @@ print("SAM loaded!")
 
 # Load image
 image_file = "images\\snooker1.png"
+# image_file = "images\\snooker2.jpg"
 image = cv2.imread(image_file)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # Show image
@@ -76,8 +78,13 @@ predictor.set_image(image)
 print("Image embedded!")
 
 # Prompts
+#snooker1.png
 input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
 input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
+# #snooker2.jpg
+# input_points = np.array([[2000, 1500]]) 
+# input_labels = np.array([1]) # 1=foreground, 0=background
+
 show_points(input_points, input_labels, plt.gca())
 masks, scores, logits = predictor.predict(
     point_coords=input_points,
