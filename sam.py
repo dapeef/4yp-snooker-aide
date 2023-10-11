@@ -60,6 +60,7 @@ def create_mask(image_file, input_points, input_labels):
 
 
     # Load image
+    print("Loading image...")
     # image_file = "images\\snooker1.png"
     # image_file = "images\\snooker2.jpg"
     image = cv2.imread(image_file)
@@ -74,6 +75,7 @@ def create_mask(image_file, input_points, input_labels):
 
 
     # SAM predictor
+    print("Embedding image...")
     predictor = SamPredictor(sam)
     predictor.set_image(image)
 
@@ -87,6 +89,7 @@ def create_mask(image_file, input_points, input_labels):
     # input_points = np.array([[2000, 1500]]) 
     # input_labels = np.array([1]) # 1=foreground, 0=background
 
+    print("Creating masks...")
     show_points(input_points, input_labels, plt.gca())
     masks, scores, logits = predictor.predict(
         point_coords=input_points,
@@ -104,13 +107,15 @@ def create_mask(image_file, input_points, input_labels):
         plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
         plt.axis('on')
 
-        plt.figure()
-        plt.imshow(mask)
+        # plt.figure()
+        # plt.imshow(mask)
 
         # file = open("temp\\" + str(time.time()) + ".json", "w")
         np.savetxt("temp\\" + str(time.time()), mask, fmt='%.0f')
 
-    plt.show()
+    print("SAM finished!")
+
+    # plt.show()
 
     # # Auto mask generator
     # mask_generator = SamAutomaticMaskGenerator(sam)
