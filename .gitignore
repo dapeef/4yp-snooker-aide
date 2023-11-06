@@ -400,3 +400,6 @@ FodyWeavers.xsd
 
 checkpoints
 temp
+.venv
+torch_save.pt
+data
