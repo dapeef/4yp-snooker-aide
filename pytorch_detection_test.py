@@ -155,17 +155,17 @@ def plot_img_bbox(img, target):
 def get_transform(train):
   if train:
     return A.Compose(
-      [
-        A.HorizontalFlip(0.5),
-        # ToTensorV2 converts image to pytorch tensor without div by 255
-        ToTensorV2(p=1.0) 
-      ],
-      bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
+        [
+            A.HorizontalFlip(0.5),
+            # ToTensorV2 converts image to pytorch tensor without div by 255
+            ToTensorV2(p=1.0) 
+        ],
+        bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
   else:
     return A.Compose(
-      [ToTensorV2(p=1.0)],
-      bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
+        [ToTensorV2(p=1.0)],
+        bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
 
 
@@ -176,7 +176,8 @@ def get_object_detection_model(num_classes):
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    model.roi_heads.box_predictor = \
+        torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, num_classes)
     
     return model
 
@@ -188,8 +189,8 @@ test_dir = 'data\\Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball\
 # construct dataset
 dataset = TableImagesDataset(files_dir, 244, 244, transforms=get_transform(True))
 dataset_test = TableImagesDataset(test_dir, 244, 244, transforms=get_transform(True))
-print('Length of training dataset:', len(dataset), '\n')
-print('Length of test dataset:', len(dataset_test), '\n')
+print('Length of training dataset:', len(dataset))
+print('Length of test dataset:', len(dataset_test))
 
 # # getting the image and target for a test index.  Feel free to change the index.
 # img, target = dataset[25]
@@ -221,7 +222,7 @@ data_loader_test = torch.utils.data.DataLoader(
 
 # train on gpu if available
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-print(device)
+print("Device:", device)
 
 num_classes = 3 # one class (class 0) is dedicated to the "background"
 
