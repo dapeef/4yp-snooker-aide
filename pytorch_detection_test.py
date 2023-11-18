@@ -253,9 +253,9 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(
 
 
 # training for 5 epochs
-num_epochs = 5
+num_epochs = 10
 
-for epoch in range(last_epoch, num_epochs):
+for epoch in range(last_epoch + 1, num_epochs):
     # training for one epoch
     train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
     # update the learning rate

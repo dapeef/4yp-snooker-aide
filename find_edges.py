@@ -4,7 +4,6 @@ import cv2
 import os
 
 
-
 def edge(image):
     sigma = .33
     v = np.mean(image)
@@ -228,6 +227,159 @@ def get_edges(image_file, mask_file=""):
     # plt.figure()
     # plt.imshow(edges)
 
-    print(sam_lines - lines)
+    # print(sam_lines - lines)
 
     # plt.show()
+
+    return lines
+
+def get_rect_corners(lines):
+    # following this process: https://stackoverflow.com/a/42904725
+    def sort_corners(corners):
+        mean_x = (corners[0][0] + \
+                  corners[1][0] + \
+                  corners[2][0] + \
+                  corners[3][0]) / 4
+        mean_y = (corners[0][1] + \
+                  corners[1][1] + \
+                  corners[2][1] + \
+                  corners[3][1]) / 4
+        
+        return np.array(sorted(corners, key=lambda point: np.arctan2((point[1]-mean_y), (point[0]-mean_x))))
+
+    point_owners = [[], [], [], []]
+    points = []
+    parallel_lines = []
+
+    # Get intersection points
+    for i in range(len(lines)):
+        r1 = lines[i][0][0]
+        t1 = lines[i][0][1]
+
+        ct1 = np.cos(t1);     # matrix element a
+        st1 = np.sin(t1);     # b
+
+        for j in range(i+1, len(lines)):
+            r2 = lines[j][0][0]
+            t2 = lines[j][0][1]
+
+            ct2 = np.cos(t2);     # c
+            st2 = np.sin(t2);     # d
+
+            det = ct1*st2-st1*ct2
+
+            if det != 0:
+                x = (st2*r1-st1*r2)/det
+                y = (-ct2*r1+ct1*r2)/det
+
+                point_owners[i].append([len(points), ""])
+                point_owners[j].append([len(points), ""])
+                points.append([x, y])
+            
+            else:
+                print("Yikes, these lines are parallel: t1={t1}, t2={t2}".format(t1=t1, t2=t2))
+                parallel_lines.append(i)
+                parallel_lines.append(j)
+    
+    # If any lines are parallel, the points on those lines are the 4 corners
+    if len(parallel_lines) != 0:
+        corners = []
+
+        for i in parallel_lines[:2]:
+            for label in point_owners[i]:
+                corners.append(points[label[0]])
+
+        return sort_corners(corners)
+
+    # Classify whether points are in the middle or on the end of lines
+    for i in range(len(point_owners)):
+        if len(point_owners[i]) < 2:
+            raise Exception("More than 2 lines parallel")
+        
+        elif len(point_owners[i]) == 2:
+            point_owners[i][0][1] = "e"
+            point_owners[i][1][1] = "e"
+        
+        else:
+            [x1, y1] = points[point_owners[i][0][0]]
+            [x2, y2] = points[point_owners[i][1][0]]
+            [x3, y3] = points[point_owners[i][2][0]]
+
+            scale_factors = []
+            if (x3-x1) != 0:
+                scale_factors.append((x2-x1) / (x3-x1))
+            if y3-y1 != 0:
+                scale_factors.append((y2-y1) / (y3-y1))
+
+            if len(scale_factors) == 0:
+                raise Exception("Two points are exactly the same")
+            
+            scale_factor = sum(scale_factors) / len(scale_factors)
+
+            if scale_factor <= 0:
+                point_owners[i][0][1] = "m"
+                point_owners[i][1][1] = "e"
+                point_owners[i][2][1] = "e"
+            elif scale_factor <= 1:
+                point_owners[i][0][1] = "e"
+                point_owners[i][1][1] = "m"
+                point_owners[i][2][1] = "e"
+            else:
+                point_owners[i][0][1] = "e"
+                point_owners[i][1][1] = "e"
+                point_owners[i][2][1] = "m"
+
+    # Classify points into being both middle, partial, or both end
+    point_types = ["", "", "", "", "", ""]
+
+    for line in point_owners:
+        for label in line:
+            if point_types[label[0]] == "":
+                point_types[label[0]] = label[1]
+            
+            elif sorted([point_types[label[0]], label[1]]) == ["e", "m"]:
+                point_types[label[0]] = "p"
+
+    # Choose the right points for the corners
+    e = []
+    p = []
+    m = []
+
+    for ind, i in enumerate(point_types):
+        if i == "e":
+            e.append(ind)
+        if i == "p":
+            p.append(ind)
+        if i == "m":
+            m.append(ind)
+    
+    def get_lines_on_point(point):
+        lines = []
+        for line_ind, line in enumerate(point_owners):
+            for label in line:
+                if label[0] == point:
+                    lines.append(line_ind)
+        return lines
+
+    m_lines = get_lines_on_point(m[0])
+
+    for ind, i in enumerate(e):
+        e_lines = get_lines_on_point(i)
+
+        if not e_lines[0] in m_lines and not e_lines[1] in m_lines:
+            e_ind = ind
+    
+    corner_inds = [p[0], m[0], p[1], e[e_ind]]
+
+    corners = []
+    for i in corner_inds:
+        corners.append(points[i])
+
+    # print(points)
+    # print(point_types)
+    # print(point_owners)
+
+    # print(corner_inds)
+    # print(corners)
+
+    return sort_corners(corners)
