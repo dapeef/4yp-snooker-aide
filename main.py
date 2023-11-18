@@ -22,4 +22,19 @@ edges = find_edges.get_edges("images\\snooker1.png")
 
 corners = find_edges.get_rect_corners(edges)
 
+# Snooker table measurements:
+# Internal playing surface from the nose of the cushion rubber: 11 foot 9 inches x 5 foot 9 inches
+# Cushion depth: 2"
+# Distance to edge of green:
+#   long side = 11' 9" + 2*2" = 12' 1" = 3.683m
+#  short side =  5' 9" + 2*2" =  6' 1" = 1.854m
+
+homography = find_edges.get_homography(corners, [1.854, 3.683])
+
+# print(homography)
+
+[x, y] = find_edges.get_world_point([1448.43523113, 321.00006331], homography)
+
+print(f"Transformed World Coordinates: ({x}, {y})")
+
 plt.show()

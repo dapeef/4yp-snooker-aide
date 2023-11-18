@@ -383,3 +383,26 @@ def get_rect_corners(lines):
     # print(corners)
 
     return sort_corners(corners)
+
+def get_homography(img_corners, table_dims):
+    width = table_dims[0]
+    height = table_dims[1]
+
+    world_pts = np.array([[0, height], [width, height], [width, 0], [0, 0]])
+
+    homography, _ = cv2.findHomography(img_corners, world_pts)
+
+    return homography
+
+def get_world_point(image_point, homography):
+    img_pts_homogeneous = np.array([image_point[0], image_point[1], 1], dtype=np.float32)
+    world_pts_homogeneous = np.dot(homography, img_pts_homogeneous)
+
+    # Normalize by the third coordinate
+    world_pts_normalized = world_pts_homogeneous / world_pts_homogeneous[2]
+
+    # Extract the x and y coordinates in the world frame
+    x_world = world_pts_normalized[0]
+    y_world = world_pts_normalized[1]
+
+    return [x_world, y_world]
