@@ -414,7 +414,7 @@ def find_balls(image_file):
 
     # Resize image
     resize_factor = 1500 / max(color_image.shape)
-    color_image = cv2.resize(color_image, (0,0), fx=resize_factor, fy=resize_factor)
+    # color_image = cv2.resize(color_image, (0,0), fx=resize_factor, fy=resize_factor)
 
     # Convert to HSV
     hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
@@ -430,7 +430,7 @@ def find_balls(image_file):
     # plt.imshow(val_smooth)
 
     # Define circle size based on image size
-    circle_size = (9, 15)
+    circle_size = (int(9/resize_factor), int(15/resize_factor))
 
     # print(circle_size)
 
@@ -468,4 +468,39 @@ def find_balls(image_file):
         print("No circles found.")
         centers = []
 
-    return centers
+    return np.array(centers)
+
+def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_height=1000):
+    # initialize our canvas as a 300x300 pixel image with 3 channels
+    # (Red, Green, and Blue) with a black background
+
+    def trans(x):
+        return int(x * (window_height/table_dims[1]))
+    
+    white = (255, 255, 255)
+    green = (34,139,34)
+    blue = (255, 0, 0)
+
+    # Create canvas
+    canvas = np.zeros((trans(table_dims[1]), trans(table_dims[0]), 3), dtype="uint8")
+    canvas = cv2.imread("images\\blank_snooker_table.png")
+
+    # Add cushions (2" = 50.8mm away from edges)
+    cushion_t = 50.8
+    corners = [
+        (trans(cushion_t), trans(cushion_t)),
+        (trans(cushion_t), trans(table_dims[1]-cushion_t)),
+        (trans(table_dims[0]-cushion_t), trans(table_dims[1]-cushion_t)),
+        (trans(table_dims[0]-cushion_t), trans(cushion_t))]
+
+    # cv2.rectangle(canvas, corners[0], corners[2], green)
+
+    # for i in range(4):
+    #     cv2.line(canvas, corners[i], corners[(i+1)%4], white)
+
+    # Add balls
+    for ball in ball_centers:
+        cv2.circle(canvas, (trans(ball[0]), window_height-trans(ball[1])), trans(ball_size/2), blue, -1)
+
+    plt.figure()
+    plt.imshow(canvas)
