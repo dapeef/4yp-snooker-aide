@@ -207,11 +207,12 @@ def get_edges(image_file, mask_file=""):
     image_file = "images\\snooker1.png"
     # image_file = "images\\snooker2.jpg"
     image = cv2.imread(image_file)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Mask image with dilated SAM mask
     image = cv2.bitwise_and(image, image, mask=dilated_mask)
-    # cv2.imwrite("masked.png", image)
+    cv2.imwrite(image_file[:-4] + "-masked.png", image)
+    
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     edges = edge(image)
     lines = line_hough(edges) #[:10]
@@ -406,3 +407,65 @@ def get_world_point(image_point, homography):
     y_world = world_pts_normalized[1]
 
     return [x_world, y_world]
+
+def find_balls(image_file):
+    # Read the image
+    color_image = cv2.imread(image_file)
+
+    # Resize image
+    resize_factor = 1500 / max(color_image.shape)
+    color_image = cv2.resize(color_image, (0,0), fx=resize_factor, fy=resize_factor)
+
+    # Convert to HSV
+    hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
+
+    # Edge find using val
+    val_channel = hsv_image[:, :, 2]
+    blur_radius = 3
+    val_smooth = cv2.GaussianBlur(val_channel, (blur_radius, blur_radius), 0)
+    val_edges = cv2.Canny(val_channel, 100, 200)
+    # plt.figure()
+    # plt.imshow(val_edges)
+    # plt.figure()
+    # plt.imshow(val_smooth)
+
+    # Define circle size based on image size
+    circle_size = (9, 15)
+
+    # print(circle_size)
+
+    # Find circles
+    circles = cv2.HoughCircles(
+        val_smooth,
+        cv2.HOUGH_GRADIENT,
+        dp=1,
+        minDist=circle_size[0],
+        param1=200,
+        param2=12,
+        minRadius=circle_size[0],
+        maxRadius=circle_size[1]
+    )
+
+    
+    plt.figure()
+    plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
+
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        centers = circles[0, :, :2]
+        radii = circles[0, :, 2]
+
+        # print("Centers:")
+        # print(centers)
+        # print("Radii:")
+        # print(radii)
+
+        # Display the image with detected circles
+        for i in range(len(centers)):
+            plt.gca().add_patch(plt.Circle((centers[i, 0], centers[i, 1]), radii[i], color='b', fill=False))
+        # plt.show()
+    else:
+        print("No circles found.")
+        centers = []
+
+    return centers

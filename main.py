@@ -33,8 +33,16 @@ homography = find_edges.get_homography(corners, [1.854, 3.683])
 
 # print(homography)
 
-[x, y] = find_edges.get_world_point([1448.43523113, 321.00006331], homography)
+[x, y] = find_edges.get_world_point([1448, 321], homography)
 
-print(f"Transformed World Coordinates: ({x}, {y})")
+# print(f"Transformed World Coordinates: ({x}, {y})")
+
+img_balls = find_edges.find_balls("images\\snooker1-masked.png")
+
+real_balls = []
+for ball in img_balls:
+    real_balls.append(find_edges.get_world_point(ball, homography))
+
+
 
 plt.show()
