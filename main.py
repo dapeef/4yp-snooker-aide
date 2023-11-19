@@ -4,11 +4,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+
+image_file = "images\\snooker1.png"
+sam.create_mask(
+    image_file=image_file,
+    input_points = np.array([[600, 600], [1300, 600], [1625, 855]]),
+    input_labels = np.array([1, 1, 0])) # 1=foreground, 0=background
+
+# image_file = "images\\snooker3.png"
 # sam.create_mask(
-#     image_file="images\\snooker1.png",
-#     input_points = np.array([[600, 600], [1300, 600], [1625, 855]]),
-#     input_labels = np.array([1, 1, 0])) # 1=foreground, 0=background
-edges = find_edges.get_edges("images\\snooker1.png")
+#     image_file=image_file,
+#     input_points = np.array([[600, 600], [1850, 250]]),
+#     input_labels = np.array([1, 0])) # 1=foreground, 0=background
+
+# plt.show()
+
+
+
+edges = find_edges.get_edges(image_file)
+
+
 
 # edges = np.array([[[ 9.44000000e+02,  1.58079637e+00]],
 #     [[ 3.21000000e+02,  1.57079637e+00]],
@@ -24,6 +39,8 @@ corners = find_edges.get_rect_corners(edges)
 
 # print(corners)
 
+
+
 # Snooker table measurements:
 # Internal playing surface from the nose of the cushion rubber: 11 foot 9 inches x 5 foot 9 inches
 # Cushion depth: 2"
@@ -35,11 +52,17 @@ homography = find_edges.get_homography(corners, [1854, 3683])
 
 # print(homography)
 
+
+
 [x, y] = find_edges.get_world_point([1448, 321], homography)
 
 # print(f"Transformed World Coordinates: ({x}, {y})")
 
-img_balls = find_edges.find_balls("images\\snooker1-masked.png")
+
+
+img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
+
+
 
 # img_balls = [[500, 325],
 #  [1445, 325],
@@ -50,6 +73,10 @@ real_balls = []
 for ball in img_balls:
     real_balls.append(find_edges.get_world_point(ball, homography))
 
+
+
 find_edges.display_table(real_balls)
+
+
 
 plt.show()

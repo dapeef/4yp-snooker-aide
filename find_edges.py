@@ -204,8 +204,6 @@ def get_edges(image_file, mask_file=""):
 
 
     # Get lines for original image
-    image_file = "images\\snooker1.png"
-    # image_file = "images\\snooker2.jpg"
     image = cv2.imread(image_file)
 
     # Mask image with dilated SAM mask
@@ -399,6 +397,8 @@ def get_world_point(image_point, homography):
     img_pts_homogeneous = np.array([image_point[0], image_point[1], 1], dtype=np.float32)
     world_pts_homogeneous = np.dot(homography, img_pts_homogeneous)
 
+    # print(world_pts_homogeneous)
+
     # Normalize by the third coordinate
     world_pts_normalized = world_pts_homogeneous / world_pts_homogeneous[2]
 
@@ -479,7 +479,7 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_
     
     white = (255, 255, 255)
     green = (34,139,34)
-    blue = (255, 0, 0)
+    blue = (0, 0, 255)
 
     # Create canvas
     canvas = np.zeros((trans(table_dims[1]), trans(table_dims[0]), 3), dtype="uint8")
