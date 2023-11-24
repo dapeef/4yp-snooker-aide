@@ -52,7 +52,7 @@ class TableImagesDataset(torch.utils.data.Dataset):
 
     def __init__(self, files_dir, width, height, transforms=None):
         self.transforms = transforms
-        self.images_dir = files_dir + "\\images"
+        self.images_dir = files_dir + "/images"
         self.height = height
         self.width = width
         
@@ -107,15 +107,20 @@ def get_transform(train):
         bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
 
+
+
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+print("Device:", device)
+
 num_classes = 3
 
 model = get_object_detection_model(num_classes)
 
-checkpoint = torch.load(".\\checkpoints\\model.pth")
+checkpoint = torch.load("./checkpoints/model.pth")
 model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 
-dataset = TableImagesDataset('data\\Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball\\real_test', 244, 244, transforms=get_transform(False))
+dataset = TableImagesDataset('data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test', 244, 244, transforms=get_transform(False))
 
 with torch.no_grad():
     for i in range(15):

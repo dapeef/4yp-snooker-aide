@@ -1,8 +1,8 @@
 # basic python and ML Libraries
 import os
-import random
+# import random
 import numpy as np
-import pandas as pd
+# import pandas as pd
 
 # for ignoring warnings
 import warnings
@@ -20,8 +20,8 @@ import torch
 import torchvision
 # from torchvision.transforms import v2
 # from torchvision.transforms import ToTensor
-from torchvision import transforms as torchtrans  
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+# from torchvision import transforms as torchtrans  
+# from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 # # helper libraries
 from engine import train_one_epoch, evaluate
@@ -39,8 +39,8 @@ class TableImagesDataset(torch.utils.data.Dataset):
 
     def __init__(self, files_dir, width, height, transforms=None):
         self.transforms = transforms
-        self.images_dir = files_dir + "\\images"
-        self.labels_dir = files_dir + "\\labels"
+        self.images_dir = files_dir + "/images"
+        self.labels_dir = files_dir + "/labels"
         self.height = height
         self.width = width
         
@@ -94,7 +94,7 @@ class TableImagesDataset(torch.utils.data.Dataset):
                 ymax_corr = int(ymax*self.height)
                 
                 if xmax_corr - xmin_corr == 0 or ymax_corr - ymin_corr == 0:
-                    print("YIKES")
+                    print("YIKES", img_name)
                 
                 boxes.append([xmin_corr, ymin_corr, xmax_corr, ymax_corr])
         
@@ -183,8 +183,8 @@ def get_object_detection_model(num_classes):
 
 
 # defining the files directory and testing directory
-files_dir = 'data\\Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball\\train_small'
-test_dir = 'data\\Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball\\test_small'
+files_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/train'
+test_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/test'
 
 # construct dataset
 dataset = TableImagesDataset(files_dir, 244, 244, transforms=get_transform(True))
@@ -237,11 +237,17 @@ params = [p for p in model.parameters() if p.requires_grad]
 optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 # Load from last checkpoint
-checkpoint = torch.load(".\\checkpoints\\model.pth")
-model.load_state_dict(checkpoint['model_state_dict'])
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-last_epoch = checkpoint['epoch']
-# loss = checkpoint['loss']
+checkpoint_file = "./checkpoints/model.pth"
+
+if os.path.exists(checkpoint_file):
+    checkpoint = torch.load(checkpoint_file)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    last_epoch = checkpoint['epoch']
+    # loss = checkpoint['loss']
+
+else:
+    last_epoch = -1
 
 # and a learning rate scheduler which decreases the learning rate by
 # 10x every 3 epochs
@@ -253,7 +259,7 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(
 
 
 # training for 5 epochs
-num_epochs = 10
+num_epochs = 20
 
 for epoch in range(last_epoch + 1, num_epochs):
     # training for one epoch
@@ -266,7 +272,7 @@ for epoch in range(last_epoch + 1, num_epochs):
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             # 'loss': loss
-            }, ".\\checkpoints\\model.pth")
+            }, checkpoint_file)
 
     # evaluate on the test dataset
     evaluate(model, data_loader_test, device=device)
