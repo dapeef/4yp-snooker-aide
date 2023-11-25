@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 
 
 image_file = "images\\snooker1.png"
-sam.create_mask(
-    image_file=image_file,
-    input_points = np.array([[600, 600], [1300, 600], [1625, 855]]),
-    input_labels = np.array([1, 1, 0])) # 1=foreground, 0=background
+# sam.create_mask(
+#     image_file=image_file,
+#     input_points = np.array([[600, 600], [1300, 600], [1625, 855]]),
+#     input_labels = np.array([1, 1, 0])) # 1=foreground, 0=background
 
 # image_file = "images\\snooker3.png"
 # sam.create_mask(
@@ -47,10 +47,21 @@ corners = find_edges.get_rect_corners(edges)
 # Distance to edge of green:
 #   long side = 11' 9" + 2*2" = 12' 1" = 3.683m
 #  short side =  5' 9" + 2*2" =  6' 1" = 1.854m
+#
+# Cushion height = 1.75" = 44.45mm
+# Ball diameter = 52.5mm
 
 homography = find_edges.get_homography(corners, [1854, 3683])
-
 # print(homography)
+
+projection = find_edges.get_perspective(corners, [1854, 3683])
+
+temp = np.dot(projection, np.array([0, 0, 0, 1]))
+
+# print(temp/temp[2])
+
+
+balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 
 
 

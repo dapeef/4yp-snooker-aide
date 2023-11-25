@@ -393,6 +393,37 @@ def get_homography(img_corners, table_dims):
 
     return homography
 
+def get_perspective(img_corners, table_dims):
+    width = table_dims[0]
+    height = table_dims[1]
+
+    world_pts = np.array([[0, height, 0], [width, height, 0], [width, 0, 0], [0, 0, 0]], dtype=np.float32)
+    image_pts = np.array(img_corners, dtype=np.float32)
+
+    retval, rvec, tvec = cv2.solvePnP(world_pts, image_pts, np.identity(3), None)
+    rotation_matrix, _ = cv2.Rodrigues(rvec)
+
+    projection = np.column_stack((rotation_matrix, tvec))
+
+    # print("retval", retval, "rvec", rvec, "tvec", tvec, "rmat", rotation_matrix, "projection", projection, sep="\n")
+
+    return projection
+
+def get_balls_homography(cushion_homography, height_difference):
+    num, Rs, Ts, Ns = cv2.decomposeHomographyMat(cushion_homography, np.identity(3))
+
+    R = Rs[0]
+    T = Ts[0]
+    # T_mat 
+
+    # print("H", cushion_homography)
+    # print("num", num)
+    # print("Rs", Rs)
+    # print("Ts", Ts)
+    # print("Ns", Ns)
+
+
+
 def get_world_point(image_point, homography):
     img_pts_homogeneous = np.array([image_point[0], image_point[1], 1], dtype=np.float32)
     world_pts_homogeneous = np.dot(homography, img_pts_homogeneous)
