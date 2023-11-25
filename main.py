@@ -2,6 +2,7 @@ import find_edges
 import sam
 import numpy as np
 import matplotlib.pyplot as plt
+import pytorch_detection_eval
 
 
 
@@ -16,10 +17,12 @@ image_file = "images\\snooker1.png"
 #     image_file=image_file,
 #     input_points = np.array([[600, 600], [1850, 250]]),
 #     input_labels = np.array([1, 0])) # 1=foreground, 0=background
-
 # plt.show()
 
 
+pockets = pytorch_detection_eval.get_boxes(image_file)
+
+plt.show()
 
 edges = find_edges.get_edges(image_file)
 
