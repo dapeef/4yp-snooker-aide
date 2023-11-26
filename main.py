@@ -8,9 +8,9 @@ import cv2
 
 
 image_file = "images\\snooker1.png"
-# image_file = "images\\terrace.jpg"
+image_file = "images\\terrace.jpg"
 # image_file = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
-# image_file = "images\\snooker2.jpg"
+image_file = "images\\snooker2.jpg"
 image = cv2.imread(image_file)
 # sam.create_mask(
 #     image_file=image_file,
@@ -31,11 +31,13 @@ pockets = pytorch_detection_eval.get_boxes(image_file)
 
 
 # sam_lines, sam_mask = find_edges.get_sam_lines()
-# edges = find_edges.get_edges(image_file, sam_lines, sam_mask)
+# dilation_dist = 5
+# edges = find_edges.get_edges(image_file, sam_lines, sam_mask, dilation_dist)
 
-pocket_lines, pocket_mask = find_edges.get_lines_from_pockets(image_file, pockets)
+pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
 # plt.show()
-edges = find_edges.get_edges(image_file, pocket_lines, pocket_mask)
+dilation_dist = max_dist/15
+edges = find_edges.get_edges(image_file, pocket_lines, pocket_mask, dilation_dist)
 
 
 

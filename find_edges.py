@@ -41,7 +41,7 @@ def line_hough(edges, threshold=15):
 def filter_lines(lines, rho, rho_error, theta, theta_error):
     new_lines = []
 
-    for line in lines.tolist():
+    for line in lines:
         if line[0][0] < rho + rho_error and \
            line[0][0] > rho - rho_error and \
            line[0][1] < theta + theta_error and \
@@ -50,11 +50,11 @@ def filter_lines(lines, rho, rho_error, theta, theta_error):
     
     return np.array(new_lines)
 
-def filter_lines_multiple(lines, sam_lines, rho_error, theta_error):
+def filter_lines_multiple(lines, informing_lines, rho_error, theta_error):
     filtered_lines = []
 
-    for sam_line in sam_lines:
-        chosen_line = filter_lines(lines, sam_line[0][0], rho_error, sam_line[0][1], theta_error)[0].tolist()
+    for informing_line in informing_lines:
+        chosen_line = filter_lines(lines, informing_line[0][0], rho_error, informing_line[0][1], theta_error)[0].tolist()
 
         filtered_lines.append(chosen_line)
     
@@ -133,6 +133,23 @@ def sort_corners(corners):
                 corners[3][1]) / 4
     
     return np.array(sorted(corners, key=lambda point: np.arctan2((point[1]-mean_y), (point[0]-mean_x))))
+
+def standardise_lines(lines):
+    new_lines = []
+
+    for line in lines:
+        rho = line[0][0]
+        theta = line[0][1]
+
+        if rho < 0:
+            rho *= -1
+            theta += np.pi
+            if theta > np.pi:
+                theta -= 2*np.pi
+        
+        new_lines.append([[rho, theta]])
+
+    return new_lines
 
 def line_mask(rho, theta, thickness, image_size):
     mask = np.zeros(image_size, dtype=np.uint8)
@@ -307,6 +324,8 @@ def get_lines_from_pockets(image_file, pockets):
 
         lines.append([[rho, theta]])
 
+    lines = standardise_lines(lines)
+
     image = cv2.imread(image_file)
     
     plt.figure("Lines from NN pockets")
@@ -318,19 +337,18 @@ def get_lines_from_pockets(image_file, pockets):
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
     corners = np.array([corners], dtype=np.int32)
     cv2.fillPoly(mask, corners, color=1)  # Set color to 1 for binary mask
-    print(max_dist)
-    mask = dilate(mask, int(max_dist/15))
 
+    return lines, mask, max_dist
+
+def get_edges(image_file, informing_lines, mask, dilation_dist):
+    # Get lines for original image
+    image = cv2.imread(image_file)
+
+    mask = dilate(mask, int(dilation_dist))
     plt.figure("Dilated mask")
     plt.title("Dilated mask")
     plt.imshow(mask)
-    plotLinesPolar(lines, mask.shape, "red")
-
-    return lines, mask
-
-def get_edges(image_file, informing_lines, mask):
-    # Get lines for original image
-    image = cv2.imread(image_file)
+    plotLinesPolar(informing_lines, mask.shape, "red")
 
     # Mask image with dilated SAM mask
     image = cv2.bitwise_and(image, image, mask=mask)
@@ -340,11 +358,14 @@ def get_edges(image_file, informing_lines, mask):
 
     edges = edge(image)
     lines = line_hough(edges) #[:10]
+    lines = standardise_lines(lines)
 
-    lines = filter_lines_multiple(lines, informing_lines, 5, 1/360*np.pi)
+    # plt.show()
 
-    plt.figure("Hough on original image, informed by SAM lines")
-    plt.title("Hough on original image, informed by SAM lines")
+    lines = filter_lines_multiple(lines, informing_lines, dilation_dist-1, 3/360*np.pi)
+
+    plt.figure("Hough on original image, informed by informing lines")
+    plt.title("Hough on original image, informed by informing lines")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
 
