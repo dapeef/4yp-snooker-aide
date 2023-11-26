@@ -22,9 +22,11 @@ image_file = "images\\snooker1.png"
 
 pockets = pytorch_detection_eval.get_boxes(image_file)
 
-plt.show()
+# plt.show()
 
-edges = find_edges.get_edges(image_file)
+
+sam_lines, sam_mask = find_edges.get_sam_lines()
+edges = find_edges.get_edges(image_file, sam_lines, sam_mask)
 
 
 

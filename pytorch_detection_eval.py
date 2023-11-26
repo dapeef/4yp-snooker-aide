@@ -14,11 +14,11 @@ warnings.filterwarnings('ignore')
 
 # Function to visualize bounding boxes in the image
 def plot_img_bbox(img, target):
-    print("woof")
     # plot the image and bboxes
     # Bounding boxes are defined as follows: x-min y-min x-max y-max
 
-    plt.figure()
+    plt.figure("Neural net pocket detection")
+    plt.title("Neural net pocket detection")
     a = plt.gca()
     a.imshow(img)
     
@@ -30,7 +30,6 @@ def plot_img_bbox(img, target):
                 is_pocket = False
         
         if is_pocket:
-            print(box)
             x, y, width, height = box[0], box[1], box[2]-box[0], box[3]-box[1]
             rect = patches.Rectangle(
                 (x, y),

@@ -171,7 +171,7 @@ def getIntersectionPolar(line1, line2):
 
     return x
 
-def get_edges(image_file, mask_file=""):
+def get_sam_lines(mask_file=""):
     # Get lines for SAM mask
     if mask_file == "":
         mask_file = os.path.join("temp", os.listdir("temp")[-1])
@@ -200,14 +200,14 @@ def get_edges(image_file, mask_file=""):
     plt.imshow(dilated_mask)
     plotLinesPolar(lines, dilated_mask.shape)
 
-    sam_lines = lines
+    return lines, dilated_mask
 
-
+def get_edges(image_file, informing_lines, mask):
     # Get lines for original image
     image = cv2.imread(image_file)
 
     # Mask image with dilated SAM mask
-    image = cv2.bitwise_and(image, image, mask=dilated_mask)
+    image = cv2.bitwise_and(image, image, mask=mask)
     cv2.imwrite(image_file[:-4] + "-masked.png", image)
     
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -215,7 +215,7 @@ def get_edges(image_file, mask_file=""):
     edges = edge(image)
     lines = line_hough(edges) #[:10]
 
-    lines = filter_lines_multiple(lines, sam_lines, 5, 1/360*np.pi)
+    lines = filter_lines_multiple(lines, informing_lines, 5, 1/360*np.pi)
 
     plt.figure("Hough on original image, informed by SAM lines")
     plt.title("Hough on original image, informed by SAM lines")
@@ -422,8 +422,6 @@ def get_balls_homography(cushion_homography, height_difference):
     # print("Ts", Ts)
     # print("Ns", Ns)
 
-
-
 def get_world_point(image_point, homography):
     img_pts_homogeneous = np.array([image_point[0], image_point[1], 1], dtype=np.float32)
     world_pts_homogeneous = np.dot(homography, img_pts_homogeneous)
@@ -478,7 +476,8 @@ def find_balls(image_file):
     )
 
     
-    plt.figure()
+    plt.figure("Hough circle transform to find balls")
+    plt.title("Hough circle transform to find balls")
     plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
 
     if circles is not None:
@@ -533,5 +532,6 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_
     for ball in ball_centers:
         cv2.circle(canvas, (trans(ball[0]), window_height-trans(ball[1])), trans(ball_size/2), blue, -1)
 
-    plt.figure()
+    plt.figure("Estimated ball positions")
+    plt.title("Estimated ball positions")
     plt.imshow(canvas)
