@@ -3,10 +3,15 @@ import sam
 import numpy as np
 import matplotlib.pyplot as plt
 import pytorch_detection_eval
+import cv2
 
 
 
 image_file = "images\\snooker1.png"
+# image_file = "images\\terrace.jpg"
+# image_file = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
+# image_file = "images\\snooker2.jpg"
+image = cv2.imread(image_file)
 # sam.create_mask(
 #     image_file=image_file,
 #     input_points = np.array([[600, 600], [1300, 600], [1625, 855]]),
@@ -21,12 +26,16 @@ image_file = "images\\snooker1.png"
 
 
 pockets = pytorch_detection_eval.get_boxes(image_file)
-
 # plt.show()
 
 
-sam_lines, sam_mask = find_edges.get_sam_lines()
-edges = find_edges.get_edges(image_file, sam_lines, sam_mask)
+
+# sam_lines, sam_mask = find_edges.get_sam_lines()
+# edges = find_edges.get_edges(image_file, sam_lines, sam_mask)
+
+pocket_lines, pocket_mask = find_edges.get_lines_from_pockets(image_file, pockets)
+# plt.show()
+edges = find_edges.get_edges(image_file, pocket_lines, pocket_mask)
 
 
 
@@ -34,14 +43,11 @@ edges = find_edges.get_edges(image_file, sam_lines, sam_mask)
 #     [[ 3.21000000e+02,  1.57079637e+00]],
 #     [[-1.31600000e+03,  2.87979317e+00]],
 #     [[ 5.68000000e+02,  2.96705961e-01]]]) # lines which don't have any parallel
-
 # edges = np.array([[[ 9.44000000e+02,  1.57079637e+00]],
 #     [[ 3.21000000e+02,  1.57079637e+00]],
 #     [[ 1.31600000e+03,  0]],
 #     [[ 5.68000000e+02,  0]]]) # lines which don't have 2 pairs parallel
-
 corners = find_edges.get_rect_corners(edges)
-
 # print(corners)
 
 
@@ -55,14 +61,10 @@ corners = find_edges.get_rect_corners(edges)
 #
 # Cushion height = 1.75" = 44.45mm
 # Ball diameter = 52.5mm
-
 homography = find_edges.get_homography(corners, [1854, 3683])
 # print(homography)
-
 projection = find_edges.get_perspective(corners, [1854, 3683])
-
 temp = np.dot(projection, np.array([0, 0, 0, 1]))
-
 # print(temp/temp[2])
 
 
@@ -71,7 +73,6 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 
 
 [x, y] = find_edges.get_world_point([1448, 321], homography)
-
 # print(f"Transformed World Coordinates: ({x}, {y})")
 
 
@@ -84,7 +85,6 @@ img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
 #  [1445, 325],
 #  [1615.36764586, 944.00007061],
 #  [ 305.34316018, 944.00001335]]
-
 real_balls = []
 for ball in img_balls:
     real_balls.append(find_edges.get_world_point(ball, homography))

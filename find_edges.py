@@ -122,6 +122,18 @@ def enlarge(mask, size_increase):
 
     return mask
 
+def sort_corners(corners):
+    mean_x = (corners[0][0] + \
+                corners[1][0] + \
+                corners[2][0] + \
+                corners[3][0]) / 4
+    mean_y = (corners[0][1] + \
+                corners[1][1] + \
+                corners[2][1] + \
+                corners[3][1]) / 4
+    
+    return np.array(sorted(corners, key=lambda point: np.arctan2((point[1]-mean_y), (point[0]-mean_x))))
+
 def line_mask(rho, theta, thickness, image_size):
     mask = np.zeros(image_size, dtype=np.uint8)
     cos_theta = np.cos(theta)
@@ -202,6 +214,120 @@ def get_sam_lines(mask_file=""):
 
     return lines, dilated_mask
 
+def get_lines_from_pockets(image_file, pockets):
+    # lines= [[[rho1, theta1]], [[rho2, theta2]], ...]:
+    # [[[ 9.4500000e+02  1.5707964e+00]]
+    #  [[ 3.2500000e+02  1.5707964e+00]]
+    #  [[-1.3160000e+03  2.8797932e+00]]
+    #  [[ 5.6600000e+02  2.9670596e-01]]]
+
+    # Get centres of boxes
+    pocket_points = []
+    for box in pockets["boxes"]:
+        x = (box[0] + box[2]) / 2
+        y = (box[1] + box[3]) / 2
+        pocket_points.append([x, y])
+    
+
+    # Make sure there are enough pockets detected
+    assert len(pocket_points) == 6, f"Not enough pockets detected; {len(pockets)} detected, 6 needed"
+    
+
+    # Identify which pockets are corners
+    side_pocket_idx = []
+
+    for i in range(len(pocket_points)):
+        x1 = pocket_points[i][0]
+        y1 = pocket_points[i][1]
+
+        vecs = []
+
+        for j in range(0, len(pocket_points)):
+            if i != j:
+                x2 = pocket_points[j][0]
+                y2 = pocket_points[j][1]
+
+                vec = np.array([x2-x1, y2-y1])
+
+                for k in range(len(vecs)):
+                    cos_theta = np.dot(vec, vecs[k]) / (np.linalg.norm(vec) * np.linalg.norm(vecs[k]))
+                    dtheta = np.arccos(np.clip(cos_theta, -1, 1))
+
+                    # print(pocket_points[i], pocket_points[j], pocket_points[k+1],180- np.rad2deg(dtheta))
+
+                    dtheta_threshold = 7 # degrees
+                    if dtheta > np.deg2rad(180-dtheta_threshold):
+                        # These three points are nearly colinear, so either vec or vecs[k] is the vector to the middle
+                        side_pocket_idx.append(i)
+
+                vecs.append(vec)
+
+    # print(side_pocket_idx)
+    
+    corners = []
+    for i in range(len(pocket_points)):
+        if not i in side_pocket_idx:
+            corners.append(pocket_points[i])
+    
+    corners = sort_corners(corners)
+
+    dists = []
+    for i in range(len(corners)):
+        for j in range(i+1, len(corners)):
+            x1 = corners[i][0]
+            x2 = corners[i][1]
+            y1 = corners[j][0]
+            y2 = corners[j][1]
+
+            dists.append(np.linalg.norm([x2-x1, y2-y1]))
+    
+    max_dist = max(dists)
+
+    assert len(corners) == 4, f"Wrong number of corners detected; detected {len(corners)}, needed 4"
+
+    # Get lines which go through corners
+    lines = []
+
+    for i in range(4):
+        x1 = corners[i][0]
+        y1 = corners[i][1]
+        x2 = corners[(i+1)%4][0]
+        y2 = corners[(i+1)%4][1]
+        # print(f"[{x1}, {y1}], [{x2}, {y2}]")
+
+        theta = np.arctan2(y2-y1, x2-x1) + np.pi/2
+
+        unit_vec = np.array([np.cos(theta), np.sin(theta)])
+        rho = np.dot(unit_vec, np.array([x1, y1]))
+
+        # if abs(np.cos(theta)) > abs(np.sin(theta)):
+        #     rho = x1/np.cos(theta)
+        # else:
+        #     rho = y1/np.sin(theta)
+
+        lines.append([[rho, theta]])
+
+    image = cv2.imread(image_file)
+    
+    plt.figure("Lines from NN pockets")
+    plt.title("Lines from NN pockets")
+    plt.imshow(image)
+    plotLinesPolar(lines, image.shape, "red")
+    
+    # Make mask
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    corners = np.array([corners], dtype=np.int32)
+    cv2.fillPoly(mask, corners, color=1)  # Set color to 1 for binary mask
+    print(max_dist)
+    mask = dilate(mask, int(max_dist/15))
+
+    plt.figure("Dilated mask")
+    plt.title("Dilated mask")
+    plt.imshow(mask)
+    plotLinesPolar(lines, mask.shape, "red")
+
+    return lines, mask
+
 def get_edges(image_file, informing_lines, mask):
     # Get lines for original image
     image = cv2.imread(image_file)
@@ -234,17 +360,6 @@ def get_edges(image_file, informing_lines, mask):
 
 def get_rect_corners(lines):
     # following this process: https://stackoverflow.com/a/42904725
-    def sort_corners(corners):
-        mean_x = (corners[0][0] + \
-                  corners[1][0] + \
-                  corners[2][0] + \
-                  corners[3][0]) / 4
-        mean_y = (corners[0][1] + \
-                  corners[1][1] + \
-                  corners[2][1] + \
-                  corners[3][1]) / 4
-        
-        return np.array(sorted(corners, key=lambda point: np.arctan2((point[1]-mean_y), (point[0]-mean_x))))
 
     point_owners = [[], [], [], []]
     points = []
