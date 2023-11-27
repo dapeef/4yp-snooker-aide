@@ -65,6 +65,10 @@ def plotLines(lines):
         for x1,y1,x2,y2 in lines[i]:
             plt.plot([x1, x2], [y1, y2], color="green", linewidth=2)
 
+def plotPoints(points):
+    for point in points:
+        plt.plot(point[0][0], point[0][1], "wx")
+
 def plotLinesPolar(lines, image_shape, line_color="green"):
     plt.xlim(0, image_shape[1])
     plt.ylim(0, image_shape[0])
@@ -412,7 +416,7 @@ def get_rect_corners(lines):
                 points.append([x, y])
             
             else:
-                print("Yikes, these lines are parallel: t1={t1}, t2={t2}".format(t1=t1, t2=t2))
+                # print("Yikes, these lines are parallel: t1={t1}, t2={t2}".format(t1=t1, t2=t2))
                 parallel_lines.append(i)
                 parallel_lines.append(j)
     
@@ -529,21 +533,24 @@ def get_homography(img_corners, table_dims):
 
     return homography
 
-def get_perspective(img_corners, table_dims):
+def get_perspective(img_corners, table_dims, K):
     width = table_dims[0]
     height = table_dims[1]
 
     world_pts = np.array([[0, height, 0], [width, height, 0], [width, 0, 0], [0, 0, 0]], dtype=np.float32)
     image_pts = np.array(img_corners, dtype=np.float32)
 
-    retval, rvec, tvec = cv2.solvePnP(world_pts, image_pts, np.identity(3), None)
+    retval, rvec, tvec = cv2.solvePnP(world_pts, image_pts, K, None)
     rotation_matrix, _ = cv2.Rodrigues(rvec)
+
+    # tvec /= tvec[2]
 
     projection = np.column_stack((rotation_matrix, tvec))
 
+
     # print("retval", retval, "rvec", rvec, "tvec", tvec, "rmat", rotation_matrix, "projection", projection, sep="\n")
 
-    return projection
+    return rvec, tvec
 
 def get_balls_homography(cushion_homography, height_difference):
     num, Rs, Ts, Ns = cv2.decomposeHomographyMat(cushion_homography, np.identity(3))
@@ -595,7 +602,7 @@ def find_balls(image_file):
     # plt.imshow(val_smooth)
 
     # Define circle size based on image size
-    circle_size = (int(9/resize_factor), int(15/resize_factor))
+    circle_size = (int(9/resize_factor), int(25/resize_factor))
 
     # print(circle_size)
 
@@ -604,7 +611,7 @@ def find_balls(image_file):
         val_smooth,
         cv2.HOUGH_GRADIENT,
         dp=1,
-        minDist=circle_size[0],
+        minDist=circle_size[0]*2,
         param1=200,
         param2=12,
         minRadius=circle_size[0],
