@@ -18,7 +18,7 @@ import matplotlib.patches as patches
 # torchvision libraries
 import torch
 import torchvision
-# from torchvision.transforms import v2
+from torchvision.transforms import v2
 # from torchvision.transforms import ToTensor
 # from torchvision import transforms as torchtrans  
 # from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
@@ -94,7 +94,7 @@ class TableImagesDataset(torch.utils.data.Dataset):
                 ymax_corr = int(ymax*self.height)
                 
                 if xmax_corr - xmin_corr == 0 or ymax_corr - ymin_corr == 0:
-                    print("YIKES", img_name)
+                    print("YIKES, the bounding box has non-positive width or height:", img_name)
                 
                 boxes.append([xmin_corr, ymin_corr, xmax_corr, ymax_corr])
         
@@ -154,18 +154,23 @@ def plot_img_bbox(img, target):
 # Send train=True for training transforms and False for val/test transforms
 def get_transform(train):
   if train:
-    return A.Compose(
+    return v2.Compose(
         [
-            A.HorizontalFlip(0.5),
+            v2.RandomHorizontalFlip(0.5),
             # ToTensorV2 converts image to pytorch tensor without div by 255
-            ToTensorV2(p=1.0) 
+            # ToTensorV2(p=1.0), # Depricated
+            # v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True)
         ],
-        bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
+        # bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
   else:
     return A.Compose(
-        [ToTensorV2(p=1.0)],
-        bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
+        [
+            # ToTensorV2(p=1.0), # Depricated
+            v2.ToDtype(torch.float32, scale=True)
+        ],
+        # bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
 
 
@@ -240,7 +245,7 @@ optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
 checkpoint_file = "./checkpoints/model.pth"
 
 if os.path.exists(checkpoint_file):
-    checkpoint = torch.load(checkpoint_file)
+    checkpoint = torch.load(checkpoint_file, map_location=torch.device(device))
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     last_epoch = checkpoint['epoch']
@@ -259,7 +264,10 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(
 
 
 # training for 5 epochs
-num_epochs = 20
+num_epochs = 35
+
+if num_epochs <= last_epoch + 1:
+    print(f"Number of epochs already exceeded. Current number of epochs is {last_epoch + 1}.")
 
 for epoch in range(last_epoch + 1, num_epochs):
     # training for one epoch
@@ -278,4 +286,4 @@ for epoch in range(last_epoch + 1, num_epochs):
     evaluate(model, data_loader_test, device=device)
 
     print("Woo! Finished an epoch!")
-    
+
