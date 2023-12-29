@@ -29,14 +29,13 @@ import utils
 import transforms as T
 
 # for image augmentations
-import albumentations as A
-from albumentations.pytorch.transforms import ToTensorV2
+# import albumentations as A
+# from albumentations.pytorch.transforms import ToTensorV2 # Depricated
 
 
 
 # we create a Dataset class which has a __getitem__ function and a __len__ function
 class TableImagesDataset(torch.utils.data.Dataset):
-
     def __init__(self, files_dir, width, height, transforms=None):
         self.transforms = transforms
         self.images_dir = files_dir + "/images"
@@ -118,9 +117,10 @@ class TableImagesDataset(torch.utils.data.Dataset):
         target["image_id"] = image_id
 
         if self.transforms:
-            sample = self.transforms(image = img_res,
-                                    bboxes = target['boxes'],
-                                    labels = labels)
+            sample = self.transforms({"image": img_res,
+                                     "bboxes": target['boxes'],
+                                     "labels": labels})
+            sample['image'] = torch.Tensor(sample['image'])
             img_res = sample['image']
             target['boxes'] = torch.Tensor(sample['bboxes'])
             
@@ -165,7 +165,7 @@ def get_transform(train):
         # bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
   else:
-    return A.Compose(
+    return v2.Compose(
         [
             # ToTensorV2(p=1.0), # Depricated
             v2.ToDtype(torch.float32, scale=True)
@@ -242,7 +242,7 @@ params = [p for p in model.parameters() if p.requires_grad]
 optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/model.pth"
+checkpoint_file = "./checkpoints/model1.pth"
 
 if os.path.exists(checkpoint_file):
     checkpoint = torch.load(checkpoint_file, map_location=torch.device(device))
@@ -263,7 +263,7 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(
 )
 
 
-# training for 5 epochs
+# training for some number of epochs
 num_epochs = 35
 
 if num_epochs <= last_epoch + 1:
