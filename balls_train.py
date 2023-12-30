@@ -18,6 +18,8 @@ import torch
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
+import matplotlib.pyplot as plt
+
 import nn_utils
 
 
@@ -26,18 +28,35 @@ height = 244
 
 transform = A.Compose(
     [
-        A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1),
-        A.HorizontalFlip(0.5),
+        A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1), # Squish aspect ratio
+        # A.augmentations.crops.transforms.RandomSizedCrop([1080, 1080], height, width, w2h_ratio=1.0, interpolation=1, always_apply=False, p=1.0), # Correct aspect ratio
+        A.augmentations.geometric.transforms.ShiftScaleRotate(
+            shift_limit=0.3,
+            scale_limit=[-0.8, 0],
+            rotate_limit=90,
+            interpolation=1,
+            border_mode=cv2.BORDER_CONSTANT,
+            value=None,
+            mask_value=None,
+            shift_limit_x=None,
+            shift_limit_y=None,
+            rotate_method='ellipse',
+            always_apply=False,
+            p=1
+        ),
+        # A.augmentations.geometric.resize.SmallestMaxSize(max_size=1024, interpolation=1, always_apply=False, p=1)
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
         # ToTensorV2 converts image to pytorch tensor without div by 255
         ToTensorV2(p=1.0) 
     ],
-    bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
+    bbox_params={'format': 'pascal_voc', 'min_visibility': 0.6, 'label_fields': ['labels']}
 )
 
 
 # defining the files directory and testing directory
-files_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/train'
-test_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/test'
+files_dir = 'data/Balls - 4792 - above, toy table, stripey balls, very size-sensitive (augment)/train'
+test_dir = 'data/Balls - 4792 - above, toy table, stripey balls, very size-sensitive (augment)/test'
 
 # construct dataset
 dataset = nn_utils.TrainImagesDataset(files_dir, width, height, transforms=transform)
@@ -50,18 +69,19 @@ print('Length of test dataset:', len(dataset_test))
 # print('Image shape:', img.shape)
 # print('Label example:', target)
     
-# # plotting the image with bboxes. Feel free to change the index
-# img, target = dataset[25]
-# plot_img_bbox(img, target)
+# plotting the image with bboxes. Feel free to change the index
+for i in range(10):
+    img, target = dataset[i]
+    nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
 
-
+plt.show()
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/model.pth"
+checkpoint_file = "./checkpoints/balls_model.pth"
 
 # training for 5 epochs
 num_epochs = 40
 
-num_classes = 3
+num_classes = 1
 
-nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)
+# nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)

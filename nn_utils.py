@@ -83,10 +83,10 @@ class TrainImagesDataset(torch.utils.data.Dataset):
                 ymin = y_center - box_ht/2
                 ymax = y_center + box_ht/2
                 
-                xmin_corr = int(xmin*self.width)
-                xmax_corr = int(xmax*self.width)
-                ymin_corr = int(ymin*self.height)
-                ymax_corr = int(ymax*self.height)
+                xmin_corr = int(xmin*wt)
+                xmax_corr = int(xmax*wt)
+                ymin_corr = int(ymin*ht)
+                ymax_corr = int(ymax*ht)
                 
                 if xmax_corr - xmin_corr == 0 or ymax_corr - ymin_corr == 0:
                     print("YIKES, the bounding box has non-positive width or height:", img_name)
@@ -184,15 +184,15 @@ def plot_img_bbox(img, target):
     for i, box in enumerate(target['boxes']):
         x, y, width, height = box[0], box[1], box[2]-box[0], box[3]-box[1]
         rect = patches.Rectangle(
-        (x, y),
-        width, height,
-        linewidth = 2,
-        edgecolor = ['red', 'orange', 'yellow'][target["labels"][i]],
-        facecolor = 'none'
+            (x, y),
+            width, height,
+            linewidth = 2,
+            edgecolor = ['red', 'orange', 'yellow'][target["labels"][i]],
+            facecolor = 'none'
         )
         # Draw the bounding box on top of the image
         a.add_patch(rect)
-    plt.show()
+    # plt.show()
 
 # Function to visualize bounding boxes in the image
 def plot_result_img_bbox(img, target):

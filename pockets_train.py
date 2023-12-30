@@ -50,14 +50,14 @@ print('Length of test dataset:', len(dataset_test))
 # print('Image shape:', img.shape)
 # print('Label example:', target)
     
-# # plotting the image with bboxes. Feel free to change the index
-# img, target = dataset[25]
-# plot_img_bbox(img, target)
+# plotting the image with bboxes. Feel free to change the index
+img, target = dataset[25]
+nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
 
 
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/model.pth"
+checkpoint_file = "./checkpoints/pockets_model.pth"
 
 # training for 5 epochs
 num_epochs = 40
