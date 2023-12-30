@@ -12,21 +12,21 @@ warnings.filterwarnings('ignore')
 import cv2
 
 # matplotlib for visualization
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+# import matplotlib.pyplot as plt
+# import matplotlib.patches as patches
 
 # torchvision libraries
 import torch
-import torchvision
+# import torchvision
 # from torchvision.transforms import v2
 # from torchvision.transforms import ToTensor
 # from torchvision import transforms as torchtrans  
 # from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 # # helper libraries
-from engine import train_one_epoch, evaluate
-import utils
-import transforms as T
+# from engine import train_one_epoch, evaluate
+# import utils
+# import transforms as T
 
 # for image augmentations
 import albumentations as A
