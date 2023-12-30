@@ -32,7 +32,7 @@ image = cv2.imread(image_file)
 
 
 
-pockets = pytorch_detection_eval.get_boxes(image_file)
+pockets = pytorch_detection_eval.get_pockets(image_file)
 # plt.show()
 
 

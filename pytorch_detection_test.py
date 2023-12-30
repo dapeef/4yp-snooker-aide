@@ -139,11 +139,6 @@ transform = A.Compose(
     bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
 )
 
-# eval_transform = A.Compose(
-#     [ToTensorV2(p=1.0)],
-#     bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
-# )
-
 
 # defining the files directory and testing directory
 files_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/train'
