@@ -2,7 +2,7 @@ import find_edges
 import sam
 import numpy as np
 import matplotlib.pyplot as plt
-import pytorch_detection_eval
+import pockets_eval
 import cv2
 
 
@@ -32,7 +32,7 @@ image = cv2.imread(image_file)
 
 
 
-pockets = pytorch_detection_eval.get_pockets(image_file)
+pockets = pockets_eval.get_pockets(image_file)
 # plt.show()
 
 
