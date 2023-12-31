@@ -115,9 +115,20 @@ class TrainImagesDataset(torch.utils.data.Dataset):
         if self.transforms:
             sample = self.transforms(image = img_res,
                                     bboxes = target['boxes'],
-                                    labels = labels)
+                                    labels = target['labels'])
             img_res = sample['image']
-            target['boxes'] = torch.Tensor(sample['bboxes'])
+            target['labels'] = torch.as_tensor(sample['labels'], dtype=torch.int64)
+            if len(sample['bboxes']) > 0:
+                target['boxes'] = torch.Tensor(sample['bboxes'])
+                boxes = target['boxes']
+                target['area'] = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+            else:
+                target['boxes'] = torch.zeros(0,4)
+                boxes = target['boxes']
+                target['area'] = torch.as_tensor([])
+            target['iscrowd'] = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+        
+        # print(target)
             
         return img_res, target
 

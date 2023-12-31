@@ -70,11 +70,13 @@ print('Length of test dataset:', len(dataset_test))
 # print('Label example:', target)
     
 # plotting the image with bboxes. Feel free to change the index
-for i in range(10):
-    img, target = dataset[i]
-    nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
 
-plt.show()
+# for i in range(len(dataset)):
+#     img, target = dataset[i]
+#     print(target)
+#     print(len(target["boxes"]), len(target["labels"]), len(target["area"]), len(target['iscrowd']))
+#     nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
+#     plt.show()
 
 # Load from last checkpoint
 checkpoint_file = "./checkpoints/balls_model.pth"
@@ -84,4 +86,4 @@ num_epochs = 40
 
 num_classes = 1
 
-# nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)
+nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)
