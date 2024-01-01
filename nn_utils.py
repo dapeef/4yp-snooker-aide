@@ -163,7 +163,7 @@ class EvalImagesDataset(torch.utils.data.Dataset):
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         # img_res = cv2.resize(img_rgb, (self.width, self.height), cv2.INTER_AREA)
         # diving by 255
-        img_res /= 255.0
+        img_res = img_rgb / 255.0
 
         target = {}
         target["boxes"] = torch.as_tensor([], dtype=torch.float32)
@@ -210,8 +210,8 @@ def plot_result_img_bbox(img, target):
     # plot the image and bboxes
     # Bounding boxes are defined as follows: x-min y-min x-max y-max
 
-    plt.figure("Neural net pocket detection")
-    plt.title("Neural net pocket detection")
+    plt.figure("Neural net detection")
+    plt.title("Neural net detection")
     a = plt.gca()
     a.imshow(img)
     
@@ -251,12 +251,21 @@ def get_object_detection_model(num_classes):
     return model
 
 def train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs):
+    # train on gpu if available
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    print("Training on device:", device)
+
+    if device == torch.device('cuda'):
+        num_workers = 8
+    else:
+        num_workers = 1
+
     # define training and validation data loaders
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=10,
         shuffle=True,
-        # num_workers=4,
+        num_workers=num_workers,
         collate_fn=utils.collate_fn,
     )
 
@@ -268,10 +277,6 @@ def train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs):
         collate_fn=utils.collate_fn,
     )
 
-
-    # train on gpu if available
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    print("Training on device:", device)
 
     # num_classes = 3 # one class (class 0) is dedicated to the "background"
 
@@ -422,11 +427,10 @@ def scale_boxes(target, image_res, model_res=[244, 244]):
     
     return new_target
 
-def get_boxes(model_path, dataset, image_file):
+def get_boxes(model_path, dataset, num_classes, image_file):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     print("Device:", device)
 
-    num_classes = 3
     model = get_object_detection_model(num_classes)
 
     checkpoint = torch.load(model_path, map_location=torch.device(device))
@@ -443,5 +447,12 @@ def get_boxes(model_path, dataset, image_file):
     scaled_target = scale_boxes(target, [width, height])
 
     plot_result_img_bbox(img, scaled_target)
+
+    # Get centres of boxes
+    scaled_target["centres"] = []
+    for box in scaled_target["boxes"]:
+        x = (box[0] + box[2]) / 2
+        y = (box[1] + box[3]) / 2
+        scaled_target["centres"].append([x, y])
 
     return scaled_target

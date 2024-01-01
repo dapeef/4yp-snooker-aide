@@ -82,8 +82,8 @@ print('Length of test dataset:', len(dataset_test))
 checkpoint_file = "./checkpoints/balls_model.pth"
 
 # training for 5 epochs
-num_epochs = 40
+num_epochs = 100
 
-num_classes = 1
+num_classes = 2
 
 nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)

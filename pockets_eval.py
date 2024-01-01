@@ -29,6 +29,8 @@ def get_pockets(image_file):
 
     dataset = nn_utils.EvalImagesDataset(image_file, width, height, transforms=transform)
 
-    model_path = "./checkpoints/model.pth"
+    model_path = "./checkpoints/pockets_model.pth"
 
-    return nn_utils.get_boxes(model_path, dataset, image_file)
+    num_classes = 3
+
+    return nn_utils.get_boxes(model_path, dataset,num_classes, image_file)
