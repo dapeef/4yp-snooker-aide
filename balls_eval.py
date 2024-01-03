@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 
 
 
-def get_pockets(image_file):
+def get_balls(image_file):
     width = 244
     height = 244
 
@@ -29,6 +29,18 @@ def get_pockets(image_file):
 
     dataset = nn_utils.EvalImagesDataset(image_file, width, height, transforms=transform)
 
-    model_path = "./checkpoints/model.pth"
+    # img, target = dataset[0]
+    # nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
 
-    return nn_utils.get_boxes(model_path, dataset, image_file)
+    model_path = "./checkpoints/balls_model5.pth"
+
+    # num_classes = 2
+
+    target = nn_utils.get_boxes(model_path, dataset, image_file)
+
+    img = cv2.imread(image_file)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    nn_utils.plot_result_img_bbox(img, target, "NN balls")
+    # plt.show()
+
+    return target["centres"]

@@ -35,10 +35,11 @@ from albumentations.pytorch.transforms import ToTensorV2
 
 # we create a Dataset class which has a __getitem__ function and a __len__ function
 class TrainImagesDataset(torch.utils.data.Dataset):
-    def __init__(self, files_dir, width, height, transforms=None):
+    def __init__(self, files_dir, chosen_class, width, height, transforms=None):
         self.transforms = transforms
         self.images_dir = files_dir + "/images"
         self.labels_dir = files_dir + "/labels"
+        self.chosen_class = chosen_class
         self.height = height
         self.width = width
         
@@ -72,36 +73,39 @@ class TrainImagesDataset(torch.utils.data.Dataset):
         with open(annot_file_path) as f:
             for line in f:
                 parsed = [float(x) for x in line.split(' ')]
-                labels.append(parsed[0])
-                x_center = parsed[1]
-                y_center = parsed[2]
-                box_wt = parsed[3]
-                box_ht = parsed[4]
+                if parsed[0] == self.chosen_class:
+                    # labels.append(parsed[0])
+                    labels.append(1)
 
-                xmin = x_center - box_wt/2
-                xmax = x_center + box_wt/2
-                ymin = y_center - box_ht/2
-                ymax = y_center + box_ht/2
-                
-                xmin_corr = int(xmin*wt)
-                xmax_corr = int(xmax*wt)
-                ymin_corr = int(ymin*ht)
-                ymax_corr = int(ymax*ht)
-                
-                if xmax_corr - xmin_corr == 0 or ymax_corr - ymin_corr == 0:
-                    print("YIKES, the bounding box has non-positive width or height:", img_name)
-                
-                boxes.append([xmin_corr, ymin_corr, xmax_corr, ymax_corr])
-        
+                    x_center = parsed[1]
+                    y_center = parsed[2]
+                    box_wt = parsed[3]
+                    box_ht = parsed[4]
+
+                    xmin = x_center - box_wt/2
+                    xmax = x_center + box_wt/2
+                    ymin = y_center - box_ht/2
+                    ymax = y_center + box_ht/2
+                    
+                    xmin_corr = int(xmin*wt)
+                    xmax_corr = int(xmax*wt)
+                    ymin_corr = int(ymin*ht)
+                    ymax_corr = int(ymax*ht)
+                    
+                    if xmax_corr - xmin_corr == 0 or ymax_corr - ymin_corr == 0:
+                        print("YIKES, the bounding box has non-positive width or height:", img_name)
+                    
+                    boxes.append([xmin_corr, ymin_corr, xmax_corr, ymax_corr])
+
         # convert boxes into a torch.Tensor
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        
+
         # getting the areas of the boxes
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
 
         # suppose all instances are not crowd
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
-        
+
         labels = torch.as_tensor(labels, dtype=torch.int64)
 
         target = {}
@@ -206,21 +210,22 @@ def plot_img_bbox(img, target):
     # plt.show()
 
 # Function to visualize bounding boxes in the image
-def plot_result_img_bbox(img, target):
+def plot_result_img_bbox(img, target, title=""):
     # plot the image and bboxes
     # Bounding boxes are defined as follows: x-min y-min x-max y-max
 
-    plt.figure("Neural net detection")
-    plt.title("Neural net detection")
+    # plt.figure("Neural net detection")
+    plt.figure(title)
+    plt.title(title)
     a = plt.gca()
     a.imshow(img)
     
     for i, box in enumerate(target['boxes']):
         is_pocket = True
 
-        if "labels" in target.keys():
-            if target["labels"][i] != 1:
-                is_pocket = False
+        # if "labels" in target.keys():
+        #     if target["labels"][i] != 1:
+        #         is_pocket = False
         
         if is_pocket:
             x, y, width, height = box[0], box[1], box[2]-box[0], box[3]-box[1]
@@ -239,7 +244,7 @@ def plot_result_img_bbox(img, target):
 
 
 # Get pretrained model
-def get_object_detection_model(num_classes):
+def get_object_detection_model(num_classes=2):
     # load a model pre-trained pre-trained on COCO
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     # get number of input features for the classifier
@@ -250,7 +255,7 @@ def get_object_detection_model(num_classes):
     
     return model
 
-def train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs):
+def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2):
     # train on gpu if available
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     print("Training on device:", device)
@@ -329,7 +334,7 @@ def train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs):
         # evaluate on the test dataset
         engine.evaluate(model, data_loader_test, device=device)
 
-        print("Woo! Finished an epoch!")
+        print("Woo! Finished an epoch!\n\n\n")
 
 
 
@@ -352,7 +357,7 @@ def get_transform(train):
         bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
 
-def filter_pockets(target, confidence_threshold=0, max_results=6, remove_overlaps=True):
+def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=True, overlap_threshold=0):
     def are_boxes_overlapping(box1, box2):
         # box format: [xmin, ymin, xmax, ymax]
         x1_box1, y1_box1, x2_box1, y2_box1 = box1
@@ -405,16 +410,15 @@ def evaluate_item(model, item):
     with torch.no_grad():
         pred = model(images)
 
-    # print(pred)
+    # print(f"pred: {pred}")
 
-    filtered = filter_pockets(pred[0], confidence_threshold=.1)
+    # filtered = filter_pockets(pred[0], confidence_threshold=.1)
+    # print(f"filtered: {filtered}")
 
     # plot_result_img_bbox(image.permute(1, 2, 0), pred[0])
     # plot_result_img_bbox(image.permute(1, 2, 0), filtered)
-
-    # print(filtered)
     
-    return filtered
+    return pred[0]
 
 def scale_boxes(target, image_res, model_res=[244, 244]):
     new_target = target.copy()
@@ -427,7 +431,7 @@ def scale_boxes(target, image_res, model_res=[244, 244]):
     
     return new_target
 
-def get_boxes(model_path, dataset, num_classes, image_file):
+def get_boxes(model_path, dataset, image_file, num_classes=2):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     print("Device:", device)
 
@@ -445,8 +449,6 @@ def get_boxes(model_path, dataset, num_classes, image_file):
     height, width, channels = img.shape
 
     scaled_target = scale_boxes(target, [width, height])
-
-    plot_result_img_bbox(img, scaled_target)
 
     # Get centres of boxes
     scaled_target["centres"] = []

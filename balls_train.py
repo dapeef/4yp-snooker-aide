@@ -58,9 +58,12 @@ transform = A.Compose(
 files_dir = 'data/Balls - 4792 - above, toy table, stripey balls, very size-sensitive (augment)/train'
 test_dir = 'data/Balls - 4792 - above, toy table, stripey balls, very size-sensitive (augment)/test'
 
+# the relevant class in the dataset
+chosen_class = 0
+
 # construct dataset
-dataset = nn_utils.TrainImagesDataset(files_dir, width, height, transforms=transform)
-dataset_test = nn_utils.TrainImagesDataset(test_dir, width, height, transforms=transform)
+dataset = nn_utils.TrainImagesDataset(files_dir, chosen_class, width, height, transforms=transform)
+dataset_test = nn_utils.TrainImagesDataset(test_dir, chosen_class, width, height, transforms=transform)
 print('Length of training dataset:', len(dataset))
 print('Length of test dataset:', len(dataset_test))
 
@@ -79,11 +82,11 @@ print('Length of test dataset:', len(dataset_test))
 #     plt.show()
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/balls_model.pth"
+checkpoint_file = "./checkpoints/balls_model5.pth"
 
 # training for 5 epochs
 num_epochs = 100
 
-num_classes = 2
+# num_classes = 2
 
-nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)
+nn_utils.train_nn(dataset, dataset_test, checkpoint_file, num_epochs)

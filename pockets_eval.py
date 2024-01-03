@@ -29,8 +29,18 @@ def get_pockets(image_file):
 
     dataset = nn_utils.EvalImagesDataset(image_file, width, height, transforms=transform)
 
-    model_path = "./checkpoints/pockets_model.pth"
+    model_path = "./checkpoints/pockets_model5.pth"
 
-    num_classes = 3
+    # num_classes = 3
 
-    return nn_utils.get_boxes(model_path, dataset,num_classes, image_file)
+    target = nn_utils.get_boxes(model_path, dataset, image_file)
+
+    
+    filtered = nn_utils.filter_boxes(target, confidence_threshold=.1)
+
+    img = cv2.imread(image_file)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    nn_utils.plot_result_img_bbox(img, filtered, "NN pockets")
+    # plt.show()
+
+    return filtered

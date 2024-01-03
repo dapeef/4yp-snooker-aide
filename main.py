@@ -3,14 +3,16 @@ import sam
 import numpy as np
 import matplotlib.pyplot as plt
 import pockets_eval
+import balls_eval
 import cv2
 
 
 
-# image_file = "images\\snooker1.png"
-image_file = "images\\terrace.jpg"
+image_file = "images\\snooker1.png"
+# image_file = "images\\terrace.jpg"
 # image_file = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
 # image_file = "images\\snooker2.jpg"
+# image_file = "images/home_snooker.jpg"
 
 
 
@@ -105,7 +107,8 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 
 
 
-img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
+# img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
+img_balls = balls_eval.get_balls(image_file)
 
 
 

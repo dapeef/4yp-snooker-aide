@@ -39,9 +39,12 @@ transform = A.Compose(
 files_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/train'
 test_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/test'
 
+# the relevant class in the dataset
+chosen_class = 1
+
 # construct dataset
-dataset = nn_utils.TrainImagesDataset(files_dir, width, height, transforms=transform)
-dataset_test = nn_utils.TrainImagesDataset(test_dir, width, height, transforms=transform)
+dataset = nn_utils.TrainImagesDataset(files_dir, chosen_class, width, height, transforms=transform)
+dataset_test = nn_utils.TrainImagesDataset(test_dir, chosen_class, width, height, transforms=transform)
 print('Length of training dataset:', len(dataset))
 print('Length of test dataset:', len(dataset_test))
 
@@ -51,17 +54,17 @@ print('Length of test dataset:', len(dataset_test))
 # print('Label example:', target)
     
 # plotting the image with bboxes. Feel free to change the index
-img, target = dataset[25]
-nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
+# img, target = dataset[25]
+# nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
 
 
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/pockets_model.pth"
+checkpoint_file = "./checkpoints/pockets_model5.pth"
 
 # training for 5 epochs
 num_epochs = 40
 
-num_classes = 3
+# num_classes = 3
 
-nn_utils.train_nn(dataset, dataset_test, num_classes, checkpoint_file, num_epochs)
+nn_utils.train_nn(dataset, dataset_test, checkpoint_file, num_epochs)
