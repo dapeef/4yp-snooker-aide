@@ -9,10 +9,10 @@ import cv2
 
 
 image_file = "images\\snooker1.png"
-# image_file = "images\\terrace.jpg"
+image_file = "images\\terrace.jpg"
 # image_file = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
 # image_file = "images\\snooker2.jpg"
-# image_file = "images/home_snooker.jpg"
+# image_file = "images/home_table3.jpg"
 
 
 
