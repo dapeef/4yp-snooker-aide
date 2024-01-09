@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pockets_eval
 import balls_eval
 import cv2
+import json
 
 
 
@@ -74,13 +75,17 @@ corners = find_edges.get_rect_corners(edges)
 # Ball diameter = 52.5mm
 
 # Intrinsic camera matrix
-fx = 26
-fy = 26
+with open("camera_matrix.json", 'r') as file:
+    camera_properties = json.load(file)
+print(camera_properties)
+fx, fy = camera_properties["focalLength"]
 x0 = image.shape[1] / 2
 y0 = image.shape[0] / 2
 K = np.array([[fx, 0 , x0],
-              [0 , fx, y0],
+              [0 , fy, y0],
               [0 , 0 , 1 ]])
+
+print(K)
 
 homography = find_edges.get_homography(corners, [1854, 3683])
 # print(homography)
