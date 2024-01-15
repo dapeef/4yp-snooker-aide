@@ -81,6 +81,7 @@ print(camera_properties)
 fx, fy = camera_properties["focalLength"]
 x0 = image.shape[1] / 2
 y0 = image.shape[0] / 2
+x0, y0 = camera_properties["principalPoint"]
 K = np.array([[fx, 0 , x0],
               [0 , fy, y0],
               [0 , 0 , 1 ]])
