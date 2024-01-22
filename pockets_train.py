@@ -21,8 +21,8 @@ from albumentations.pytorch.transforms import ToTensorV2
 import nn_utils
 
 
-width = 244
-height = 244
+width = 512
+height = width
 
 transform = A.Compose(
     [
@@ -60,10 +60,10 @@ print('Length of test dataset:', len(dataset_test))
 
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/pockets_model5.pth"
+checkpoint_file = "./checkpoints/pockets_model.pth"
 
 # training for 5 epochs
-num_epochs = 40
+num_epochs = 100
 
 # num_classes = 3
 

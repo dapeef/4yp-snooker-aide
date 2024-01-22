@@ -448,7 +448,7 @@ def get_boxes(model_path, dataset, image_file, num_classes=2):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     height, width, channels = img.shape
 
-    scaled_target = scale_boxes(target, [width, height])
+    scaled_target = scale_boxes(target, [width, height], [512, 512])
 
     # Get centres of boxes
     scaled_target["centres"] = []

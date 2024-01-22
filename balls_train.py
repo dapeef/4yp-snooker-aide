@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 import nn_utils
 
 
-width = 244
-height = 244
+width = 512
+height = width
 
 transform = A.Compose(
     [
@@ -82,7 +82,7 @@ print('Length of test dataset:', len(dataset_test))
 #     plt.show()
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/balls_model5.pth"
+checkpoint_file = "./checkpoints/balls_model.pth"
 
 # training for 5 epochs
 num_epochs = 100

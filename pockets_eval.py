@@ -16,8 +16,8 @@ warnings.filterwarnings('ignore')
 
 
 def get_pockets(image_file):
-    width = 244
-    height = 244
+    width = 512
+    height = width
 
     transform = A.Compose(
         [
@@ -29,7 +29,7 @@ def get_pockets(image_file):
 
     dataset = nn_utils.EvalImagesDataset(image_file, width, height, transforms=transform)
 
-    model_path = "./checkpoints/pockets_model5.pth"
+    model_path = "./checkpoints/pockets_model.pth"
 
     # num_classes = 3
 

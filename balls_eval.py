@@ -16,8 +16,8 @@ warnings.filterwarnings('ignore')
 
 
 def get_balls(image_file):
-    width = 244
-    height = 244
+    width = 512
+    height = width
 
     transform = A.Compose(
         [
@@ -32,7 +32,7 @@ def get_balls(image_file):
     # img, target = dataset[0]
     # nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
 
-    model_path = "./checkpoints/balls_model5.pth"
+    model_path = "./checkpoints/balls_model.pth"
 
     # num_classes = 2
 
