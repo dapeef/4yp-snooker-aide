@@ -17,7 +17,7 @@ def english_8_ball_table_specs() -> pt.PocketTableSpecs:
         corner_jaw_radius = 0.08,
         side_pocket_width = 0.08,
         side_pocket_angle = 3,
-        side_pocket_depth = 0.00437,
+        side_pocket_depth = 0.1,
         side_pocket_radius = 0.129 / 2,
         side_jaw_radius = 0.03,
     )
@@ -60,8 +60,6 @@ def main():
     table = pt.Table.from_table_specs(english_8_ball_table_specs())
     # balls = pt.get_eight_ball_rack(table)
 
-    print(len(table.cushion_segments.linear))
-
     balls = {
         "cue" : create_ball("cue", (0.5, .5), True)
     }
@@ -97,18 +95,18 @@ def main():
 
     shot = pt.continuize(shot)
 
-    shot.save("temp/pool_tool_output.json")
+    shot.save("temp/pool_tool_output.json", drop_continuized_history=True)
 
-    for state in shot.balls['cue'].history_cts.states:
-        print(state)
+    # for state in shot.balls['cue'].history_cts.states:
+    #     print(state)
 
 
 
-    # Start an instance of the ShotViewer
-    interface = pt.ShotViewer()
+    # # Start an instance of the ShotViewer
+    # interface = pt.ShotViewer()
 
-    # Open up the shot in the GUI
-    interface.show(shot)
+    # # Open up the shot in the GUI
+    # interface.show(shot)
 
 if __name__ == "__main__":
     main()

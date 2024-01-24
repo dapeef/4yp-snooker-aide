@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication
 from PyQt5 import uic
-from PyQt5.QtCore import QUrl, Qt, QProcess
+from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont
 import sys
 import os
@@ -18,7 +18,7 @@ class Ui(QMainWindow):
         # Set final canvas_widget values
         self.canvas_table_width = 1000
         self.canvas_table_height = self.canvas_table_width / 2
-        self.canvas_padding = self.canvas_table_width / 10
+        self.canvas_padding = int(self.canvas_table_width / 10)
         self.canvas_widget.setFixedWidth(int(self.canvas_table_width + 2*self.canvas_padding))
         self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
         self.canvas_widget.paintEvent = self.draw_canvas
@@ -32,8 +32,6 @@ class Ui(QMainWindow):
 
         self.shot = pt.System.load("temp/pool_tool_output.json")
 
-        print(self.shot.table.cushion_segments)
-    
     def transform_distance(self, real_distance):
         table_width = self.shot.table.w
         table_length = self.shot.table.l
@@ -50,13 +48,14 @@ class Ui(QMainWindow):
         painter = QPainter(self.canvas_widget)
         pen = QPen()
         painter.setRenderHint(QPainter.Antialiasing)  # Optional: Enable antialiasing for smoother circle
-        painter.fillRect(self.rect(), self.color_top) # Set background colour
+        painter.fillRect(self.rect(), self.color_table) # Set background colour
         painter.setBrush(QBrush(Qt.SolidPattern))  # Set the brush style
 
+        cushion_edge = self.canvas_widget.height()
 
         # Cushions
         pen.setColor(self.color_cushion)
-        pen.setWidth(5)
+        pen.setWidth(1)
         painter.setPen(pen)
         # Cushion lines
         for line_id, line_info in self.shot.table.cushion_segments.linear.items():
@@ -69,35 +68,68 @@ class Ui(QMainWindow):
 
             painter.drawLine(scaled_p1[0], scaled_p1[1], scaled_p2[0], scaled_p2[1])
 
-            print(line_info.id, line_info.direction)
+            # Save lowest x value - this is to draw the top
+            cushion_edge = min([cushion_edge, scaled_p1[1], scaled_p2[1]])
 
-            radius = 5  # Adjust the radius as needed
-            painter.setBrush(QBrush(Qt.red))  # Set the brush color for the circle
-            painter.drawEllipse(scaled_p1[0] - radius, scaled_p1[1] - radius, 2 * radius, 2 * radius)
+            # radius = 5  # Adjust the radius as needed
+            # painter.setBrush(QBrush(Qt.red))  # Set the brush color for the circle
+            # painter.drawEllipse(scaled_p1[0] - radius, scaled_p1[1] - radius, 2 * radius, 2 * radius)
 
-            # Draw text at the center of the line
-            text = line_info.id + ", " + str(line_info.direction)
-            text_position = (int((scaled_p1[0] + scaled_p2[0]) / 2), int((scaled_p1[1] + scaled_p2[1]) / 2))
-            painter.setBrush(QBrush(Qt.white))  # Set the brush color for the text
-            font = QFont()
-            font.setPointSize(10)  # Adjust the font size as needed
-            painter.setFont(font)
-            painter.drawText(text_position[0] - 20, text_position[1] - 10, text)
+            # # Draw text at the center of the line
+            # text = line_info.id + ", " + str(line_info.direction)
+            # text_position = (int((scaled_p1[0] + scaled_p2[0]) / 2), int((scaled_p1[1] + scaled_p2[1]) / 2))
+            # painter.setBrush(QBrush(Qt.white))  # Set the brush color for the text
+            # font = QFont()
+            # font.setPointSize(10)  # Adjust the font size as needed
+            # painter.setFont(font)
+            # painter.drawText(text_position[0] - 20, text_position[1] - 10, text)
 
         # Cushion circles
         for line_id, line_info in self.shot.table.cushion_segments.circular.items():
-            center = line_info.center[:2]  # Discard the z-value
-
             # Scale the points to fit within the widget dimensions
-            center = self.transform_point(center)
+            center = self.transform_point(line_info.center[:2])
 
             radius = self.transform_distance(line_info.radius)
             painter.setBrush(QBrush(self.color_cushion))  # Set the brush color for the circle
+            painter.setBrush(Qt.NoBrush)  # Set the brush color for the circle
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
 
+        
+        # Top
+        # Draw rectangles forming a frame with padding
+        frame_rect_top = QRect().adjusted(0, 0, self.canvas_widget.width(), cushion_edge)
+        frame_rect_left = QRect().adjusted(0, 0, cushion_edge, self.canvas_widget.height())
+        frame_rect_right = QRect().adjusted(self.canvas_widget.width() - cushion_edge, 0, self.canvas_widget.width(), self.canvas_widget.height())
+        frame_rect_bottom = QRect().adjusted(0, self.canvas_widget.height() - cushion_edge, self.canvas_widget.width(), self.canvas_widget.height())
 
+        painter.fillRect(frame_rect_top, self.color_top)
+        painter.fillRect(frame_rect_left, self.color_top)
+        painter.fillRect(frame_rect_right, self.color_top)
+        painter.fillRect(frame_rect_bottom, self.color_top)
+
+
+        # Pockets
+        for pocket_id, pocket_info in self.shot.table.pockets.items():
+            center = self.transform_point(pocket_info.center[:2])
+
+            radius = self.transform_distance(pocket_info.radius)
+            painter.setBrush(QBrush(self.color_pocket))  # Set the brush color for the circle
+            pen.setWidth(0)
+            pen.setColor(self.color_pocket)
+            painter.setPen(pen)
+            painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
         
 
+        # Draw balls
+        for ball_id, ball_info in self.shot.balls.items():
+            center = self.transform_point(ball_info.state.rvw[0][:2])
+
+            radius = self.transform_distance(ball_info.params.R)
+            painter.setBrush(QBrush(Qt.white))  # Set the brush color for the circle
+            pen.setWidth(0)
+            pen.setColor(Qt.white)
+            painter.setPen(pen)
+            painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
 
 class Hri():
     def __init__(self):
