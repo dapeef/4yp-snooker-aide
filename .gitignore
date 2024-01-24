@@ -403,3 +403,4 @@ temp
 .venv
 torch_save.pt
 data
+pooltool-sandbox

@@ -75,7 +75,7 @@ class Simulation:
         if self.table_type == "english_pool_7ft":
             if is_cue:
                 diameter = 47.6 # 1 7/8"
-                density = 1.72 # g/m^3 (Super Aramith Pro English 8 Ball)
+                density = 1720 # kg/m^3 (Super Aramith Pro English 8 Ball)
                 mass = 0.097 
             else:
                 diameter = 50.8 # 2"
