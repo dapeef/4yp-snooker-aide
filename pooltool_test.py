@@ -95,7 +95,7 @@ def main():
 
     shot = pt.continuize(shot)
 
-    shot.save("temp/pool_tool_output.json", drop_continuized_history=True)
+    shot.save("temp/pool_tool_output.json")
 
     # for state in shot.balls['cue'].history_cts.states:
     #     print(state)

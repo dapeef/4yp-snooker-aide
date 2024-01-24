@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication
 from PyQt5 import uic
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont
+from PyQt5.QtCore import Qt, QRect, QPoint
+from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon
 import sys
 import os
 import json
@@ -28,6 +28,14 @@ class Ui(QMainWindow):
         self.color_cushion = QColor("#0b5e0f")
         self.color_top = QColor("#5e400b")
         self.color_pocket = QColor("#000000")
+        
+        self.color_path = [
+            Qt.black, # stationary = 0
+            Qt.blue,  # spinning = 1
+            Qt.red,   # sliding = 2
+            Qt.white, # rolling = 3
+            Qt.green  # pocketed = 4
+        ]
 
 
         self.shot = pt.System.load("temp/pool_tool_output.json")
@@ -57,6 +65,7 @@ class Ui(QMainWindow):
         pen.setColor(self.color_cushion)
         pen.setWidth(1)
         painter.setPen(pen)
+        
         # Cushion lines
         for line_id, line_info in self.shot.table.cushion_segments.linear.items():
             p1 = line_info.p1[:2]  # Discard the z-value
@@ -90,7 +99,7 @@ class Ui(QMainWindow):
             center = self.transform_point(line_info.center[:2])
 
             radius = self.transform_distance(line_info.radius)
-            painter.setBrush(QBrush(self.color_cushion))  # Set the brush color for the circle
+            # painter.setBrush(QBrush(self.color_cushion))  # Set the brush color for the circle
             painter.setBrush(Qt.NoBrush)  # Set the brush color for the circle
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
 
@@ -118,7 +127,28 @@ class Ui(QMainWindow):
             pen.setColor(self.color_pocket)
             painter.setPen(pen)
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
+
         
+        # Draw ball paths
+        for ball_id, ball_info in self.shot.balls.items():
+            points = []
+            current_state_id = ball_info.history_cts.states[0].s
+
+            for i, state in enumerate(ball_info.history_cts.states):
+                points.append(self.transform_point(state.rvw[0][:2]))
+
+                if current_state_id != state.s or i == len(ball_info.history_cts.states):
+                    # Set the pen color based on the value of s
+                    pen.setColor(self.color_path[state.s])
+                    pen.setWidth(2)
+                    painter.setPen(pen)
+
+                    # Draw the path
+                    polyline = QPolygon([QPoint(*point) for point in points])
+                    painter.drawPolyline(polyline)
+
+                    points = [points[-1]]
+
 
         # Draw balls
         for ball_id, ball_info in self.shot.balls.items():
