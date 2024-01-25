@@ -7,6 +7,7 @@ import os
 import json
 import pooltool as pt
 import math
+import pooltool_test as pt_utils
 
 
 class Ui(QMainWindow):
@@ -98,17 +99,17 @@ class Ui(QMainWindow):
         # Clockwise, starting with the left-most side of the top-left pocket sides
         self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
 
-
-        # Get shot to show
-        self.shot = pt.System.load("temp/pool_tool_output.json")
-
         # Initialise visualisation parameters
         self.time = 0
-        self.power = 0
+        self.V0 = 0
         self.phi = 0
         self.theta = 0
         self.spin_side = 0
         self.spin_top = 0
+        
+        # Get shot to show
+        self.create_shot(balls=pt_utils.get_example_balls())
+        self.update_shot()
 
 
         # Calculate top and cushion thickness
@@ -136,12 +137,37 @@ class Ui(QMainWindow):
 
         self.time = min(max(self.time, 0), self.shot.t)
         
-        if not slider_set:
+        if not slider_set and self.shot.t != 0:
             self.time_slider.setValue(int(self.time / self.shot.t * self.time_slider.maximum()))
 
         self.time_label.setText("Shot time: {:.2f}s".format(self.time))
 
         self.canvas_widget.update()
+
+
+    def create_shot(self, balls):
+        table = pt.Table.from_table_specs(pt_utils.english_8_ball_table_specs())
+        cue = pt.Cue(cue_ball_id="cue")
+
+        self.shot = pt.System(table=table, balls=balls, cue=cue)
+
+    def update_shot(self, V0=None, phi=None, a=None, b=None, theta=None):
+        if not V0 is None:
+            self.V0 = V0
+        if not phi is None:
+            self.phi = phi
+        if not a is None:
+            self.spin_side = a
+        if not b is None:
+            self.spin_top = b
+        if not theta is None:
+            self.theta = theta
+
+        self.shot.strike(V0=self.V0, phi=self.phi, a=self.spin_side, b=self.spin_top, theta=self.theta)
+        # Evolve the shot.
+        self.shot = pt.simulate(self.shot)
+        # Continuize the shot
+        self.shot = pt.continuize(self.shot)
 
 
     def transform_distance(self, real_distance):
@@ -257,7 +283,7 @@ class Ui(QMainWindow):
         # Draw balls
         for ball_id, ball_info in self.shot.balls.items():
             color = self.color_ball[ball_info.ballset.name][ball_info.id]
-            # Assuming that the continuised states are all 0.01s apart from each other
+            # Assuming that the continuised states are all ~0.01s apart from each other
             center = self.transform_point(ball_info.history_cts.states[int(self.time/0.01)].rvw[0][:2])
             radius = self.transform_distance(ball_info.params.R)
 

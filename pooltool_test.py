@@ -3,6 +3,7 @@
 import pooltool as pt
 from attr import asdict
 import numpy as np
+import time
 
 def english_8_ball_table_specs() -> pt.PocketTableSpecs:
     return pt.PocketTableSpecs(
@@ -22,7 +23,7 @@ def english_8_ball_table_specs() -> pt.PocketTableSpecs:
         side_jaw_radius = 0.03,
     )
 
-def ball_params(is_cue_ball=False) -> pt.BallParams:
+def english_8_ball_ball_params(is_cue_ball=False) -> pt.BallParams:
     density = 1720 # kg/mm^3 (Super Aramith Pro English 8 Ball)
 
     if is_cue_ball:
@@ -54,20 +55,15 @@ def create_ball(id, position, is_cue_ball=False) -> pt.Ball:
         id,
         xy=position,
         ballset=pt.BallSet(name="pooltool_pocket"),
-        **asdict(ball_params(is_cue_ball))
+        **asdict(english_8_ball_ball_params(is_cue_ball))
     )
 
-def main():
-    # We need a table, some balls, and a cue stick
-    # Build a table from the table specs
-    table = pt.Table.from_table_specs(english_8_ball_table_specs())
-    # balls = pt.get_eight_ball_rack(table)
-
+def get_example_balls():
     balls = {
-        "cue" : create_ball("cue", (0.5, .5), True)
+        "cue" : create_ball("cue", (0.5, .5), is_cue_ball=True)
     }
 
-    positions = [(ball_params().R, ball_params().R),
+    positions = [(english_8_ball_ball_params().R, english_8_ball_ball_params().R),
                  (.2, .2),
                  (.4, .4),
                  (.6, .6),
@@ -78,31 +74,41 @@ def main():
                  (.8, 1.1),
                  (.8, 1.2),
                  (.8, 1.3),
-                 (1.9812/2 - ball_params().R, 1.9812 - ball_params().R)
+                 (1.9812/2 - english_8_ball_ball_params().R, 1.9812 - english_8_ball_ball_params().R)
                 ]
 
     for i in range(len(positions)):
-        # ball_id = "red_" + ("0" if i <= 9 else "") + str(i + 1)
-        # balls[ball_id] = pt.Ball.create(
-        #     ball_id, xy=positions[i], ballset=pt.BallSet(name="generic_snooker"), **asdict(pt.BallParams.default())
-        # )
-
         ball_id = str(i + 1)
         balls[ball_id] = create_ball(ball_id, positions[i])
+    
+    return balls
+
+def main():
+    # We need a table, some balls, and a cue stick
+    # Build a table from the table specs
+    table = pt.Table.from_table_specs(english_8_ball_table_specs())
+    # balls = pt.get_eight_ball_rack(table)
 
     cue = pt.Cue(cue_ball_id="cue")
+    
+    balls = get_example_balls()
 
     # Wrap it up as a System
     shot = pt.System(table=table, balls=balls, cue=cue)
 
     # Aim at the head ball with a strong impact
-    shot.strike(V0=2, phi=pt.aim.at_ball(shot, "2") + 2.7, a=0.5, b=-.3, theta=0)
+    start = time.time()
+    for i in range(360):
+        shot.strike(V0=2, phi=pt.aim.at_ball(shot, "2") + i + .1, a=0.5, b=-.3, theta=0)
+        # Evolve the shot.
+        simulated_shot = pt.simulate(shot)
+        
+        shot = pt.continuize(simulated_shot)
+    print(time.time() - start)
     # shot.strike(V0=0)
 
-    # Evolve the shot.
-    pt.simulate(shot, inplace=True)
 
-    shot = pt.continuize(shot)
+    shot = pt.continuize(simulated_shot)
 
     shot.save("temp/pool_tool_output.json")
 
