@@ -23,7 +23,9 @@ class Ui(QMainWindow):
         self.canvas_padding = int(self.canvas_table_width / 10)
         self.canvas_widget.setFixedWidth(int(self.canvas_table_width + 2*self.canvas_padding))
         self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
-        self.canvas_widget.paintEvent = self.draw_canvas
+        self.canvas_widget.paintEvent = self.draw_table_canvas
+
+        self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
 
         # Initialise visualisation parameters
         self.time = 0
@@ -57,6 +59,11 @@ class Ui(QMainWindow):
         self.b_slider.valueChanged.connect(
             lambda value: self.update_shot(b=value/self.b_slider.maximum()*self.b_max))
         self.center_button.clicked.connect(lambda: self.update_shot(a=0, b=0))
+
+        # Link spin widget click
+        self.spin_canvas_widget.mousePressEvent = self.spin_widget_mousedown
+        self.spin_canvas_widget.mouseMoveEvent = self.spin_widget_click
+        self.spin_canvas_widget.mouseReleaseEvent = self.spin_widget_mouseup
         
 
         # Set some colour values
@@ -176,6 +183,20 @@ class Ui(QMainWindow):
 
         self.shot = pt.System(table=table, balls=balls, cue=cue)
 
+    def spin_widget_mousedown(self, event):
+        self.is_dragging_spin = True
+        self.spin_widget_click(event)
+    def spin_widget_mouseup(self, event):
+        self.is_dragging_spin = False
+    def spin_widget_click(self, event):
+        if self.is_dragging_spin:
+            # Update the point coordinates based on mouse click
+            circle_radius = min(self.spin_canvas_widget.width(), self.spin_canvas_widget.height()) / 2
+            circle_center = self.spin_canvas_widget.rect().center()
+            a = -(event.x() - circle_center.x()) / circle_radius
+            b = -(event.y() - circle_center.y()) / circle_radius
+            self.update_shot(a=a, b=b)
+
     def update_shot(self, V0=None, phi=None, a=None, b=None, theta=None):
         # if not V0 is None:
         #     self.V0 = V0
@@ -217,12 +238,15 @@ class Ui(QMainWindow):
         self.theta_slider.setValue(int(self.shot.cue.theta / self.theta_max * self.theta_slider.maximum()))
         self.theta_slider.blockSignals(False)
 
+        # Update spin widget
+        self.spin_canvas_widget.update()
+
 
         self.recalculate_shot()
         self.update_time()
 
     def recalculate_shot(self):
-        # Evolve the shot.
+        # Evolve the shot
         self.shot = pt.simulate(self.shot)
         # Continuize the shot
         self.shot = pt.continuize(self.shot)
@@ -242,7 +266,7 @@ class Ui(QMainWindow):
             int(self.transform_distance(real_xy[0]) + self.canvas_padding)
         )
 
-    def draw_canvas(self, event):
+    def draw_table_canvas(self, event):
         painter = QPainter(self.canvas_widget)
         pen = QPen()
         painter.setRenderHint(QPainter.Antialiasing)  # Optional: Enable antialiasing for smoother circle
@@ -357,6 +381,30 @@ class Ui(QMainWindow):
             pen.setColor(QColor("black"))
             painter.setPen(pen)
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
+
+    def draw_spin_canvas(self, event):
+        painter = QPainter(self.spin_canvas_widget)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        pen = QPen()
+        pen.setColor(QColor("white"))
+        pen.setWidth(1)
+        painter.setPen(pen)  # White color
+        painter.setBrush(QBrush(QColor("white")))  # White color
+
+        # Draw the circle
+        circle_radius = min(self.spin_canvas_widget.width(), self.spin_canvas_widget.height()) / 2 - 1
+        circle_center = self.spin_canvas_widget.rect().center()
+        painter.drawEllipse(circle_center, circle_radius, circle_radius)
+
+        # Draw crosshairs at the given point
+        point_x = int(circle_center.x() + circle_radius * -self.shot.cue.a)
+        point_y = int(circle_center.y() + circle_radius *  -self.shot.cue.b)
+        crosshair_length = 10
+        pen.setColor(QColor("red"))
+        painter.setPen(pen)
+        painter.drawLine(point_x, point_y - crosshair_length, point_x, point_y + crosshair_length)
+        painter.drawLine(point_x - crosshair_length, point_y, point_x + crosshair_length, point_y)
 
 
 class Hri():
