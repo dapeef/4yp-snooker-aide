@@ -29,19 +29,65 @@ class Ui(QMainWindow):
         self.color_cushion = QColor("#0b5e0f")
         self.color_top = QColor("#5e400b")
         self.color_pocket = QColor("#000000")
-        
-        self.color_path = [
-            Qt.black, # stationary = 0
-            Qt.blue,  # spinning = 1
-            Qt.red,   # sliding = 2
-            Qt.white, # rolling = 3
-            Qt.green  # pocketed = 4
+        self.color_path = [ # Path colours for different ball states
+            QColor("black"), # stationary = 0
+            QColor("blue"),  # spinning = 1
+            QColor("#b3b3b3"),   # sliding = 2
+            QColor("white"), # rolling = 3
+            QColor("green")  # pocketed = 4
         ]
+        self.color_ball = {
+            "pooltool_pocket": {
+                "cue": QColor("white"),
+                "1": QColor("red"),
+                "2": QColor("red"),
+                "3": QColor("red"),
+                "4": QColor("red"),
+                "5": QColor("red"),
+                "6": QColor("red"),
+                "7": QColor("red"),
+                "8": QColor("black"),
+                "9": QColor("yellow"),
+                "10": QColor("yellow"),
+                "11": QColor("yellow"),
+                "12": QColor("yellow"),
+                "13": QColor("yellow"),
+                "14": QColor("yellow"),
+                "15": QColor("yellow"),
+            },
+            "generic_snooker": {
+                "cue": QColor("white"),
+                "red_01": QColor("red"),
+                "red_02": QColor("red"),
+                "red_03": QColor("red"),
+                "red_04": QColor("red"),
+                "red_05": QColor("red"),
+                "red_06": QColor("red"),
+                "red_07": QColor("red"),
+                "red_08": QColor("red"),
+                "red_09": QColor("red"),
+                "red_10": QColor("red"),
+                "red_11": QColor("red"),
+                "red_12": QColor("red"),
+                "red_13": QColor("red"),
+                "red_14": QColor("red"),
+                "red_15": QColor("red"),
+                "yellow": QColor("yellow"),
+                "green": QColor("green"),
+                "brown": QColor("#5e400b"),
+                "blue": QColor("blue"),
+                "pink": QColor("#FFC0CB"),
+                "black": QColor("black")
+            }
+        }
+
+        print(type(self.color_table))
 
         # Define cushion polarity
         # 0 draws a cushion to the right of the defining line, 1 to the left
         # Clockwise, starting with the left-most side of the top-left pocket sides
         self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
+
 
 
         self.shot = pt.System.load("temp/pool_tool_output.json")
@@ -74,6 +120,11 @@ class Ui(QMainWindow):
             int(self.transform_distance(real_xy[0]) + self.canvas_padding)
         )
 
+    def lighten_color(self, color, factor):
+        # Lighten the given color by the specified factor (0-1).
+        hsl = list(color.getHslF())
+        hsl[2] = min(1.0, hsl[2] + factor)
+        return QColor.fromHslF(*hsl)
 
     def draw_canvas(self, event):
         painter = QPainter(self.canvas_widget)
@@ -159,7 +210,11 @@ class Ui(QMainWindow):
 
                 if current_state_id != state.s or i == len(ball_info.history_cts.states):
                     # Set the pen color based on the value of s
-                    pen.setColor(self.color_path[state.s])
+                    if state.s == 3: # Rolling
+                        color = self.color_ball[ball_info.ballset.name][ball_info.id].lighter(180)
+                        pen.setColor(color)
+                    else:
+                        pen.setColor(self.color_path[state.s])
                     pen.setWidth(2)
                     painter.setPen(pen)
 
@@ -172,12 +227,13 @@ class Ui(QMainWindow):
 
         # Draw balls
         for ball_id, ball_info in self.shot.balls.items():
+            color = self.color_ball[ball_info.ballset.name][ball_info.id]
             center = self.transform_point(ball_info.state.rvw[0][:2])
-
             radius = self.transform_distance(ball_info.params.R)
-            painter.setBrush(QBrush(Qt.white))  # Set the brush color for the circle
-            pen.setWidth(0)
-            pen.setColor(Qt.white)
+
+            painter.setBrush(QBrush(color))  # Set the brush color for the circle
+            pen.setWidth(2)
+            pen.setColor(QColor("black"))
             painter.setPen(pen)
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
 

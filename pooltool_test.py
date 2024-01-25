@@ -17,7 +17,7 @@ def english_8_ball_table_specs() -> pt.PocketTableSpecs:
         corner_jaw_radius = 0.08,
         side_pocket_width = 0.08,
         side_pocket_angle = 3,
-        side_pocket_depth = 0.05,
+        side_pocket_depth = 0.03,
         side_pocket_radius = 0.129 / 2,
         side_jaw_radius = 0.03,
     )
@@ -72,6 +72,12 @@ def main():
                  (.4, .4),
                  (.6, .6),
                  (.8, .8),
+                 (.9, .8),
+                 (.8, .9),
+                 (.8, 1),
+                 (.8, 1.1),
+                 (.8, 1.2),
+                 (.8, 1.3),
                  (1.9812/2 - ball_params().R, 1.9812 - ball_params().R)
                 ]
 
@@ -90,7 +96,7 @@ def main():
     shot = pt.System(table=table, balls=balls, cue=cue)
 
     # Aim at the head ball with a strong impact
-    shot.strike(V0=1.5, phi=pt.aim.at_ball(shot, "2") + .6, a=0, b=-.8, theta=0)
+    shot.strike(V0=2, phi=pt.aim.at_ball(shot, "2") + 2.7, a=0.5, b=-.3, theta=0)
     # shot.strike(V0=0)
 
     # Evolve the shot.
