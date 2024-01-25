@@ -25,7 +25,15 @@ class Ui(QMainWindow):
         self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
         self.canvas_widget.paintEvent = self.draw_canvas
 
-        # Link button events to functions
+        # Initialise visualisation parameters
+        self.time = 0
+        self.V0_max = 7 # m/s
+        self.phi_max = 360
+        self.theta_max = 90
+        self.a_max = 1
+        self.b_max = 1
+
+        # Link time button events to functions
         self.time_slider.valueChanged.connect(
             lambda value: self.update_time(set_time=value/self.time_slider.maximum(), slider_set=True))
         self.plus001.clicked.connect(lambda: self.update_time(rel_time=0.01))
@@ -36,6 +44,20 @@ class Ui(QMainWindow):
         self.minus1.clicked.connect(lambda: self.update_time(rel_time=-1))
         self.start_time_button.clicked.connect(lambda: self.update_time(set_time=0))
         self.end_time_button.clicked.connect(lambda: self.update_time(set_time=1))
+
+        # Link shot button events to functions
+        self.V0_slider.valueChanged.connect(
+            lambda value: self.update_shot(V0=value/self.V0_slider.maximum()*self.V0_max))
+        self.phi_slider.valueChanged.connect(
+            lambda value: self.update_shot(phi=value/self.phi_slider.maximum()*self.phi_max))
+        self.theta_slider.valueChanged.connect(
+            lambda value: self.update_shot(theta=value/self.theta_slider.maximum()*self.theta_max))
+        self.a_slider.valueChanged.connect(
+            lambda value: self.update_shot(a=-value/self.a_slider.maximum()*self.a_max))
+        self.b_slider.valueChanged.connect(
+            lambda value: self.update_shot(b=value/self.b_slider.maximum()*self.b_max))
+        self.center_button.clicked.connect(lambda: self.update_shot(a=0, b=0))
+        
 
         # Set some colour values
         self.color_table = QColor("#1ea625")
@@ -99,17 +121,18 @@ class Ui(QMainWindow):
         # Clockwise, starting with the left-most side of the top-left pocket sides
         self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
 
-        # Initialise visualisation parameters
-        self.time = 0
-        self.V0 = 0
-        self.phi = 0
-        self.theta = 0
-        self.spin_side = 0
-        self.spin_top = 0
         
         # Get shot to show
         self.create_shot(balls=pt_utils.get_example_balls())
-        self.update_shot()
+        # self.shot.strike(V0=self.V0, phi=self.phi, a=self.spin_side, b=self.spin_top, theta=self.theta)
+        self.update_shot(
+            V0=1.1,
+            phi=226,
+            a=0,
+            b=-0.8,
+            theta=0,
+        )
+
 
 
         # Calculate top and cushion thickness
@@ -137,8 +160,10 @@ class Ui(QMainWindow):
 
         self.time = min(max(self.time, 0), self.shot.t)
         
-        if not slider_set and self.shot.t != 0:
+        if self.shot.t != 0:
+            self.time_slider.blockSignals(True)
             self.time_slider.setValue(int(self.time / self.shot.t * self.time_slider.maximum()))
+            self.time_slider.blockSignals(False)
 
         self.time_label.setText("Shot time: {:.2f}s".format(self.time))
 
@@ -152,22 +177,57 @@ class Ui(QMainWindow):
         self.shot = pt.System(table=table, balls=balls, cue=cue)
 
     def update_shot(self, V0=None, phi=None, a=None, b=None, theta=None):
-        if not V0 is None:
-            self.V0 = V0
-        if not phi is None:
-            self.phi = phi
-        if not a is None:
-            self.spin_side = a
-        if not b is None:
-            self.spin_top = b
-        if not theta is None:
-            self.theta = theta
+        # if not V0 is None:
+        #     self.V0 = V0
+        #     self.shot.cue.V0 = V0
+        # if not phi is None:
+        #     self.phi = phi
+        # if not a is None:
+        #     self.spin_side = a
+        # if not b is None:
+        #     self.spin_top = b
+        # if not theta is None:
+        #     self.theta = theta
+        # Reset simulation
+        self.shot.reset_balls()
+        self.shot.reset_history()
 
-        self.shot.strike(V0=self.V0, phi=self.phi, a=self.spin_side, b=self.spin_top, theta=self.theta)
+        # Update simulation parameters
+        self.shot.strike(V0=V0, phi=phi, a=a, b=b, theta=theta)
+
+        #Update text
+        self.V0_label.setText("Shot speed: {:.1f}m/s".format(self.shot.cue.V0))
+        self.phi_label.setText("Angle: {:.1f}°".format(self.shot.cue.phi))
+        self.theta_label.setText("Elevation: {:.1f}°".format(self.shot.cue.theta))
+
+        # Update sliders
+        self.V0_slider.blockSignals(True)
+        self.V0_slider.setValue(int(self.shot.cue.V0 / self.V0_max * self.V0_slider.maximum()))
+        self.V0_slider.blockSignals(False)
+        self.phi_slider.blockSignals(True)
+        self.phi_slider.setValue(int(self.shot.cue.phi / self.phi_max * self.phi_slider.maximum()))
+        self.phi_slider.blockSignals(False)
+        self.a_slider.blockSignals(True)
+        self.a_slider.setValue(int(-self.shot.cue.a / self.a_max * self.a_slider.maximum()))
+        self.a_slider.blockSignals(False)
+        self.b_slider.blockSignals(True)
+        self.b_slider.setValue(int(self.shot.cue.b / self.b_max * self.b_slider.maximum()))
+        self.b_slider.blockSignals(False)
+        self.theta_slider.blockSignals(True)
+        self.theta_slider.setValue(int(self.shot.cue.theta / self.theta_max * self.theta_slider.maximum()))
+        self.theta_slider.blockSignals(False)
+
+
+        self.recalculate_shot()
+        self.update_time()
+
+    def recalculate_shot(self):
         # Evolve the shot.
         self.shot = pt.simulate(self.shot)
         # Continuize the shot
         self.shot = pt.continuize(self.shot)
+
+        self.canvas_widget.update()
 
 
     def transform_distance(self, real_distance):
@@ -283,8 +343,13 @@ class Ui(QMainWindow):
         # Draw balls
         for ball_id, ball_info in self.shot.balls.items():
             color = self.color_ball[ball_info.ballset.name][ball_info.id]
-            # Assuming that the continuised states are all ~0.01s apart from each other
-            center = self.transform_point(ball_info.history_cts.states[int(self.time/0.01)].rvw[0][:2])
+            # Work out the most appropriate state
+            best_state = ball_info.history_cts.states[0]
+            for state in ball_info.history_cts.states:
+                if state.t > self.time:
+                    break
+                best_state = state
+            center = self.transform_point(best_state.rvw[0][:2])
             radius = self.transform_distance(ball_info.params.R)
 
             painter.setBrush(QBrush(color))  # Set the brush color for the circle

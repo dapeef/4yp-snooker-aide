@@ -184,7 +184,7 @@
             <item>
              <layout class="QGridLayout" name="gridLayout_2">
               <item row="0" column="1">
-               <widget class="QSlider" name="top_spin_slider">
+               <widget class="QSlider" name="b_slider">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
                   <horstretch>0</horstretch>
@@ -192,10 +192,10 @@
                  </sizepolicy>
                 </property>
                 <property name="minimum">
-                 <number>-10</number>
+                 <number>-100</number>
                 </property>
                 <property name="maximum">
-                 <number>10</number>
+                 <number>100</number>
                 </property>
                 <property name="orientation">
                  <enum>Qt::Vertical</enum>
@@ -210,17 +210,17 @@
                  <enum>QSlider::TicksBelow</enum>
                 </property>
                 <property name="tickInterval">
-                 <number>10</number>
+                 <number>100</number>
                 </property>
                </widget>
               </item>
               <item row="1" column="0">
-               <widget class="QSlider" name="side_spin_slider">
+               <widget class="QSlider" name="a_slider">
                 <property name="minimum">
-                 <number>-10</number>
+                 <number>-100</number>
                 </property>
                 <property name="maximum">
-                 <number>10</number>
+                 <number>100</number>
                 </property>
                 <property name="orientation">
                  <enum>Qt::Horizontal</enum>
@@ -229,7 +229,7 @@
                  <enum>QSlider::TicksBelow</enum>
                 </property>
                 <property name="tickInterval">
-                 <number>10</number>
+                 <number>100</number>
                 </property>
                </widget>
               </item>
@@ -258,22 +258,11 @@
              </layout>
             </item>
             <item>
-             <layout class="QGridLayout" name="gridLayout_3">
-              <item row="0" column="0">
-               <widget class="QPushButton" name="center_button">
-                <property name="text">
-                 <string>Center</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QPushButton" name="dead_weight_button">
-                <property name="text">
-                 <string>Dead-weight</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
+             <widget class="QPushButton" name="center_button">
+              <property name="text">
+               <string>Center</string>
+              </property>
+             </widget>
             </item>
            </layout>
           </widget>
@@ -285,14 +274,17 @@
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
             <item>
-             <widget class="QLabel" name="power_label">
+             <widget class="QLabel" name="V0_label">
               <property name="text">
-               <string>Power: ?.? m/s</string>
+               <string>Shot speed: ?.? m/s</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QSlider" name="power_slider">
+             <widget class="QSlider" name="V0_slider">
+              <property name="maximum">
+               <number>1000</number>
+              </property>
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -316,20 +308,26 @@
             </item>
             <item>
              <widget class="QSlider" name="phi_slider">
+              <property name="maximum">
+               <number>1000</number>
+              </property>
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="elevation_label">
+             <widget class="QLabel" name="theta_label">
               <property name="text">
                <string>Elevation: ?.?°</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QSlider" name="elevation_slider">
+             <widget class="QSlider" name="theta_slider">
+              <property name="maximum">
+               <number>1000</number>
+              </property>
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
