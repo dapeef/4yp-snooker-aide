@@ -6,6 +6,7 @@ import sys
 import os
 import json
 import pooltool as pt
+import math
 
 
 class Ui(QMainWindow):
@@ -37,8 +38,28 @@ class Ui(QMainWindow):
             Qt.green  # pocketed = 4
         ]
 
+        # Define cushion polarity
+        # 0 draws a cushion to the right of the defining line, 1 to the left
+        # Clockwise, starting with the left-most side of the top-left pocket sides
+        self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
+
 
         self.shot = pt.System.load("temp/pool_tool_output.json")
+
+
+        # Calculate top and cushion thickness
+        self.top_thickness = self.canvas_widget.height()
+        self.cushion_thickness = 0
+
+        for line_id, line_info in self.shot.table.cushion_segments.linear.items():
+            # Scale the points to fit within the widget dimensions
+            start = self.transform_point(line_info.p1[:2])
+            end = self.transform_point(line_info.p2[:2])
+
+            # Save lowest x value - this is to draw the top
+            self.top_thickness = min([self.top_thickness, *start, *end])
+            self.cushion_thickness = self.canvas_padding - self.top_thickness
+
 
     def transform_distance(self, real_distance):
         table_width = self.shot.table.w
@@ -46,11 +67,13 @@ class Ui(QMainWindow):
 
         return int(real_distance / table_length * self.canvas_table_width)
     
+    
     def transform_point(self, real_xy):
         return (
             int(self.transform_distance(real_xy[1]) + self.canvas_padding),
             int(self.transform_distance(real_xy[0]) + self.canvas_padding)
         )
+
 
     def draw_canvas(self, event):
         painter = QPainter(self.canvas_widget)
@@ -59,39 +82,36 @@ class Ui(QMainWindow):
         painter.fillRect(self.rect(), self.color_table) # Set background colour
         painter.setBrush(QBrush(Qt.SolidPattern))  # Set the brush style
 
-        cushion_edge = self.canvas_widget.height()
-
         # Cushions
         pen.setColor(self.color_cushion)
         pen.setWidth(1)
         painter.setPen(pen)
-        
+        painter.setBrush(QBrush(self.color_cushion))  # Set the brush color for the cushions
+
         # Cushion lines
         for line_id, line_info in self.shot.table.cushion_segments.linear.items():
-            p1 = line_info.p1[:2]  # Discard the z-value
-            p2 = line_info.p2[:2]  # Discard the z-value
-
             # Scale the points to fit within the widget dimensions
-            scaled_p1 = self.transform_point(p1)
-            scaled_p2 = self.transform_point(p2)
+            start = self.transform_point(line_info.p1[:2])
+            end = self.transform_point(line_info.p2[:2])
 
-            painter.drawLine(scaled_p1[0], scaled_p1[1], scaled_p2[0], scaled_p2[1])
+            width = int(math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2))
+            vector = (end[0] - start[0], end[1] - start[1])
 
-            # Save lowest x value - this is to draw the top
-            cushion_edge = min([cushion_edge, scaled_p1[1], scaled_p2[1]])
+            # Calculate the angle of the line from the x-axis
+            angle = math.degrees(math.atan2(end[1] - start[1], end[0] - start[0])) + self.cushion_polarity[int(line_info.id)-1] * 180
 
-            # radius = 5  # Adjust the radius as needed
-            # painter.setBrush(QBrush(Qt.red))  # Set the brush color for the circle
-            # painter.drawEllipse(scaled_p1[0] - radius, scaled_p1[1] - radius, 2 * radius, 2 * radius)
+            painter.save()
+            # Move the painter to the center of the rectangle
+            painter.translate(start[0] + vector[0] / 2, start[1] + vector[1] / 2)
 
-            # # Draw text at the center of the line
-            # text = line_info.id + ", " + str(line_info.direction)
-            # text_position = (int((scaled_p1[0] + scaled_p2[0]) / 2), int((scaled_p1[1] + scaled_p2[1]) / 2))
-            # painter.setBrush(QBrush(Qt.white))  # Set the brush color for the text
-            # font = QFont()
-            # font.setPointSize(10)  # Adjust the font size as needed
-            # painter.setFont(font)
-            # painter.drawText(text_position[0] - 20, text_position[1] - 10, text)
+            # Rotate the painter
+            painter.rotate(angle)
+
+            # Draw the rotated rectangle with thickness
+            painter.drawRect(int(-width / 2), 0, width, self.cushion_thickness)
+
+            painter.restore()
+
 
         # Cushion circles
         for line_id, line_info in self.shot.table.cushion_segments.circular.items():
@@ -99,17 +119,17 @@ class Ui(QMainWindow):
             center = self.transform_point(line_info.center[:2])
 
             radius = self.transform_distance(line_info.radius)
-            # painter.setBrush(QBrush(self.color_cushion))  # Set the brush color for the circle
-            painter.setBrush(Qt.NoBrush)  # Set the brush color for the circle
+            painter.setBrush(QBrush(self.color_cushion))  # Set the brush color for the circle
+            # painter.setBrush(Qt.NoBrush)  # Set the brush color for the circle
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
 
         
         # Top
         # Draw rectangles forming a frame with padding
-        frame_rect_top = QRect().adjusted(0, 0, self.canvas_widget.width(), cushion_edge)
-        frame_rect_left = QRect().adjusted(0, 0, cushion_edge, self.canvas_widget.height())
-        frame_rect_right = QRect().adjusted(self.canvas_widget.width() - cushion_edge, 0, self.canvas_widget.width(), self.canvas_widget.height())
-        frame_rect_bottom = QRect().adjusted(0, self.canvas_widget.height() - cushion_edge, self.canvas_widget.width(), self.canvas_widget.height())
+        frame_rect_top = QRect().adjusted(0, 0, self.canvas_widget.width(), self.top_thickness)
+        frame_rect_left = QRect().adjusted(0, 0, self.top_thickness, self.canvas_widget.height())
+        frame_rect_right = QRect().adjusted(self.canvas_widget.width() - self.top_thickness, 0, self.canvas_widget.width(), self.canvas_widget.height())
+        frame_rect_bottom = QRect().adjusted(0, self.canvas_widget.height() - self.top_thickness, self.canvas_widget.width(), self.canvas_widget.height())
 
         painter.fillRect(frame_rect_top, self.color_top)
         painter.fillRect(frame_rect_left, self.color_top)
@@ -169,7 +189,7 @@ class Hri():
         self.window.show()
 
     def mainloop(self):
-        self.app.exec()
+        sys.exit(self.app.exec())
 
 
 if __name__ == "__main__":
