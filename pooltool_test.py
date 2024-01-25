@@ -17,7 +17,7 @@ def english_8_ball_table_specs() -> pt.PocketTableSpecs:
         corner_jaw_radius = 0.08,
         side_pocket_width = 0.08,
         side_pocket_angle = 3,
-        side_pocket_depth = 0.1,
+        side_pocket_depth = 0.05,
         side_pocket_radius = 0.129 / 2,
         side_jaw_radius = 0.03,
     )
@@ -31,6 +31,9 @@ def ball_params(is_cue_ball=False) -> pt.BallParams:
         radius = 50.8 / 2 / 1000 # m - diameter = 2"
 
     mass = 4/3 * np.pi * radius**3 * density # kg
+
+    # Overwrite radius so all balls are the same size; pooltool can't handle different sized balls at the moment
+    radius = 50.8 / 2 / 1000 # m - diameter = 2"
 
     return pt.BallParams(
         m=mass,
@@ -87,7 +90,7 @@ def main():
     shot = pt.System(table=table, balls=balls, cue=cue)
 
     # Aim at the head ball with a strong impact
-    shot.strike(V0=1.5, phi=pt.aim.at_ball(shot, "2") + .6, a=0, b=.8, theta=0)
+    shot.strike(V0=1.5, phi=pt.aim.at_ball(shot, "2") + .6, a=0, b=-.8, theta=0)
     # shot.strike(V0=0)
 
     # Evolve the shot.
