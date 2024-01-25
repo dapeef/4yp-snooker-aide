@@ -24,6 +24,18 @@ class Ui(QMainWindow):
         self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
         self.canvas_widget.paintEvent = self.draw_canvas
 
+        # Link button events to functions
+        self.time_slider.valueChanged.connect(
+            lambda value: self.update_time(set_time=value/self.time_slider.maximum(), slider_set=True))
+        self.plus001.clicked.connect(lambda: self.update_time(rel_time=0.01))
+        self.plus01.clicked.connect(lambda: self.update_time(rel_time=0.1))
+        self.plus1.clicked.connect(lambda: self.update_time(rel_time=1))
+        self.minus001.clicked.connect(lambda: self.update_time(rel_time=-0.01))
+        self.minus01.clicked.connect(lambda: self.update_time(rel_time=-0.1))
+        self.minus1.clicked.connect(lambda: self.update_time(rel_time=-1))
+        self.start_time_button.clicked.connect(lambda: self.update_time(set_time=0))
+        self.end_time_button.clicked.connect(lambda: self.update_time(set_time=1))
+
         # Set some colour values
         self.color_table = QColor("#1ea625")
         self.color_cushion = QColor("#0b5e0f")
@@ -81,16 +93,22 @@ class Ui(QMainWindow):
             }
         }
 
-        print(type(self.color_table))
-
         # Define cushion polarity
         # 0 draws a cushion to the right of the defining line, 1 to the left
         # Clockwise, starting with the left-most side of the top-left pocket sides
         self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
 
 
-
+        # Get shot to show
         self.shot = pt.System.load("temp/pool_tool_output.json")
+
+        # Initialise visualisation parameters
+        self.time = 0
+        self.power = 0
+        self.phi = 0
+        self.theta = 0
+        self.spin_side = 0
+        self.spin_top = 0
 
 
         # Calculate top and cushion thickness
@@ -106,6 +124,25 @@ class Ui(QMainWindow):
             self.top_thickness = min([self.top_thickness, *start, *end])
             self.cushion_thickness = self.canvas_padding - self.top_thickness
 
+        # Do initial update of the GUI
+        self.update_time(set_time=1)
+
+
+    def update_time(self, set_time=None, rel_time=None, slider_set=False):
+        if not set_time is None:
+            self.time = set_time * self.shot.t
+        elif not rel_time is None:
+            self.time += rel_time
+
+        self.time = min(max(self.time, 0), self.shot.t)
+        
+        if not slider_set:
+            self.time_slider.setValue(int(self.time / self.shot.t * self.time_slider.maximum()))
+
+        self.time_label.setText("Shot time: {:.2f}s".format(self.time))
+
+        self.canvas_widget.update()
+
 
     def transform_distance(self, real_distance):
         table_width = self.shot.table.w
@@ -113,18 +150,11 @@ class Ui(QMainWindow):
 
         return int(real_distance / table_length * self.canvas_table_width)
     
-    
     def transform_point(self, real_xy):
         return (
             int(self.transform_distance(real_xy[1]) + self.canvas_padding),
             int(self.transform_distance(real_xy[0]) + self.canvas_padding)
         )
-
-    def lighten_color(self, color, factor):
-        # Lighten the given color by the specified factor (0-1).
-        hsl = list(color.getHslF())
-        hsl[2] = min(1.0, hsl[2] + factor)
-        return QColor.fromHslF(*hsl)
 
     def draw_canvas(self, event):
         painter = QPainter(self.canvas_widget)
@@ -162,7 +192,6 @@ class Ui(QMainWindow):
             painter.drawRect(int(-width / 2), 0, width, self.cushion_thickness)
 
             painter.restore()
-
 
         # Cushion circles
         for line_id, line_info in self.shot.table.cushion_segments.circular.items():
@@ -228,7 +257,8 @@ class Ui(QMainWindow):
         # Draw balls
         for ball_id, ball_info in self.shot.balls.items():
             color = self.color_ball[ball_info.ballset.name][ball_info.id]
-            center = self.transform_point(ball_info.state.rvw[0][:2])
+            # Assuming that the continuised states are all 0.01s apart from each other
+            center = self.transform_point(ball_info.history_cts.states[int(self.time/0.01)].rvw[0][:2])
             radius = self.transform_distance(ball_info.params.R)
 
             painter.setBrush(QBrush(color))  # Set the brush color for the circle
@@ -236,6 +266,7 @@ class Ui(QMainWindow):
             pen.setColor(QColor("black"))
             painter.setPen(pen)
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
+
 
 class Hri():
     def __init__(self):
