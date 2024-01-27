@@ -18,7 +18,7 @@ def english_8_ball_table_specs() -> pt.PocketTableSpecs:
         corner_jaw_radius = 0.08,
         side_pocket_width = 0.08,
         side_pocket_angle = 3,
-        side_pocket_depth = 0.03,
+        side_pocket_depth = 0.07,
         side_pocket_radius = 0.129 / 2,
         side_jaw_radius = 0.03,
     )
@@ -60,7 +60,7 @@ def create_ball(id, position, is_cue_ball=False) -> pt.Ball:
 
 def get_example_balls():
     balls = {
-        "cue" : create_ball("cue", (0.5, .5), is_cue_ball=True)
+        "cue" : create_ball("cue", (0.5, 1), is_cue_ball=True)
     }
 
     positions = [(english_8_ball_ball_params().R, english_8_ball_ball_params().R),

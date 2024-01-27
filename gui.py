@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication
 from PyQt5 import uic
-from PyQt5.QtCore import Qt, QRect, QPoint
+from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon
 import sys
 import os
@@ -8,6 +8,7 @@ import json
 import pooltool as pt
 import math
 import pooltool_test as pt_utils
+import time
 
 
 class Ui(QMainWindow):
@@ -35,6 +36,17 @@ class Ui(QMainWindow):
         self.a_max = 1
         self.b_max = 1
 
+        # Create shot object
+        self.create_shot(balls=pt_utils.get_example_balls())
+        # self.shot.strike(V0=self.V0, phi=self.phi, a=self.spin_side, b=self.spin_top, theta=self.theta)
+        self.update_shot(
+            V0=1.1,
+            phi=244.2,
+            a=0,
+            b=-0.8,
+            theta=0,
+        )
+
         # Link time button events to functions
         self.time_slider.valueChanged.connect(
             lambda value: self.update_time(set_time=value/self.time_slider.maximum(), slider_set=True))
@@ -46,12 +58,19 @@ class Ui(QMainWindow):
         self.minus1.clicked.connect(lambda: self.update_time(rel_time=-1))
         self.start_time_button.clicked.connect(lambda: self.update_time(set_time=0))
         self.end_time_button.clicked.connect(lambda: self.update_time(set_time=1))
+        self.play_button.clicked.connect(self.toggle_play_animation)
 
         # Link shot button events to functions
         self.V0_slider.valueChanged.connect(
             lambda value: self.update_shot(V0=value/self.V0_slider.maximum()*self.V0_max))
         self.phi_slider.valueChanged.connect(
             lambda value: self.update_shot(phi=value/self.phi_slider.maximum()*self.phi_max))
+        self.phi_plus001.clicked.connect(lambda: self.update_shot(phi=self.shot.cue.phi + 0.01))
+        self.phi_plus01.clicked.connect(lambda: self.update_shot(phi=self.shot.cue.phi + 0.1))
+        self.phi_plus1.clicked.connect(lambda: self.update_shot(phi=self.shot.cue.phi + 1))
+        self.phi_minus001.clicked.connect(lambda: self.update_shot(phi=self.shot.cue.phi - 0.01))
+        self.phi_minus01.clicked.connect(lambda: self.update_shot(phi=self.shot.cue.phi - 0.1))
+        self.phi_minus1.clicked.connect(lambda: self.update_shot(phi=self.shot.cue.phi - 1))
         self.theta_slider.valueChanged.connect(
             lambda value: self.update_shot(theta=value/self.theta_slider.maximum()*self.theta_max))
         self.a_slider.valueChanged.connect(
@@ -64,7 +83,14 @@ class Ui(QMainWindow):
         self.spin_canvas_widget.mousePressEvent = self.spin_widget_mousedown
         self.spin_canvas_widget.mouseMoveEvent = self.spin_widget_click
         self.spin_canvas_widget.mouseReleaseEvent = self.spin_widget_mouseup
-        
+
+        # Setup play function calls
+        self.playing = False
+        self.play_start_time = time.time()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.play_update)
+        self.timer.start(16) # milliseconds
+
 
         # Set some colour values
         self.color_table = QColor("#1ea625")
@@ -128,18 +154,6 @@ class Ui(QMainWindow):
         # Clockwise, starting with the left-most side of the top-left pocket sides
         self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
 
-        
-        # Get shot to show
-        self.create_shot(balls=pt_utils.get_example_balls())
-        # self.shot.strike(V0=self.V0, phi=self.phi, a=self.spin_side, b=self.spin_top, theta=self.theta)
-        self.update_shot(
-            V0=1.1,
-            phi=226,
-            a=0,
-            b=-0.8,
-            theta=0,
-        )
-
 
 
         # Calculate top and cushion thickness
@@ -156,7 +170,7 @@ class Ui(QMainWindow):
             self.cushion_thickness = self.canvas_padding - self.top_thickness
 
         # Do initial update of the GUI
-        self.update_time(set_time=1)
+        self.update_time(set_time=0)
 
 
     def update_time(self, set_time=None, rel_time=None, slider_set=False):
@@ -176,6 +190,55 @@ class Ui(QMainWindow):
 
         self.canvas_widget.update()
 
+    def toggle_play_animation(self, event):
+        if not self.playing:
+            self.playing = True
+            self.play_start_time = time.time() - self.time
+
+            self.disable_enable_all(False)
+            self.play_button.setEnabled(True)
+            self.play_button.setText("Pause")
+        
+        else:
+            self.playing = False
+            
+            self.disable_enable_all(True)
+            self.play_button.setEnabled(True)
+            self.play_button.setText("Play")
+    
+    def play_update(self):
+        if self.playing:
+            self.time = (time.time() - self.play_start_time) % self.shot.t
+            self.update_time()
+
+
+    def disable_enable_all(self, enabled):
+        self.time_slider.setEnabled(enabled)
+        self.plus001.setEnabled(enabled)
+        self.plus01.setEnabled(enabled)
+        self.plus1.setEnabled(enabled)
+        self.minus001.setEnabled(enabled)
+        self.minus01.setEnabled(enabled)
+        self.minus1.setEnabled(enabled)
+        self.start_time_button.setEnabled(enabled)
+        self.end_time_button.setEnabled(enabled)
+        self.play_button.setEnabled(enabled)
+        # self.stop_button.setEnabled(enabled)
+
+        # Link shot button events to functions
+        self.V0_slider.setEnabled(enabled)
+        self.phi_slider.setEnabled(enabled)
+        self.phi_plus001.setEnabled(enabled)
+        self.phi_plus01.setEnabled(enabled)
+        self.phi_plus1.setEnabled(enabled)
+        self.phi_minus001.setEnabled(enabled)
+        self.phi_minus01.setEnabled(enabled)
+        self.phi_minus1.setEnabled(enabled)
+        self.theta_slider.setEnabled(enabled)
+        self.a_slider.setEnabled(enabled)
+        self.b_slider.setEnabled(enabled)
+        self.center_button.setEnabled(enabled)
+
 
     def create_shot(self, balls):
         table = pt.Table.from_table_specs(pt_utils.english_8_ball_table_specs())
@@ -184,8 +247,9 @@ class Ui(QMainWindow):
         self.shot = pt.System(table=table, balls=balls, cue=cue)
 
     def spin_widget_mousedown(self, event):
-        self.is_dragging_spin = True
-        self.spin_widget_click(event)
+        if not self.playing:
+            self.is_dragging_spin = True
+            self.spin_widget_click(event)
     def spin_widget_mouseup(self, event):
         self.is_dragging_spin = False
     def spin_widget_click(self, event):
