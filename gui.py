@@ -18,16 +18,6 @@ class Ui(QMainWindow):
         # Load UI
         uic.loadUi("gui.ui", self)
 
-        # Set final canvas_widget values
-        self.canvas_table_width = 1000
-        self.canvas_table_height = self.canvas_table_width / 2
-        self.canvas_padding = int(self.canvas_table_width / 10)
-        self.canvas_widget.setFixedWidth(int(self.canvas_table_width + 2*self.canvas_padding))
-        self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
-        self.canvas_widget.paintEvent = self.draw_table_canvas
-
-        self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
-
         # Initialise visualisation parameters
         self.time = 0
         self.V0_max = 7 # m/s
@@ -40,12 +30,22 @@ class Ui(QMainWindow):
         self.create_shot(balls=pt_utils.get_example_balls())
         # self.shot.strike(V0=self.V0, phi=self.phi, a=self.spin_side, b=self.spin_top, theta=self.theta)
         self.update_shot(
-            V0=1.1,
-            phi=244.2,
+            V0=0.8,
+            phi=274,
             a=0,
-            b=-0.8,
+            b=-0.7,
             theta=0,
         )
+
+        # Set final canvas_widget values
+        self.canvas_table_width = 1000
+        self.canvas_table_height = self.canvas_table_width / self.shot.table.l * self.shot.table.w
+        self.canvas_padding = int(self.canvas_table_width / 10)
+        self.canvas_widget.setFixedWidth(int(self.canvas_table_width + 2*self.canvas_padding))
+        self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
+        self.canvas_widget.paintEvent = self.draw_table_canvas
+
+        self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
 
         # Link time button events to functions
         self.time_slider.valueChanged.connect(

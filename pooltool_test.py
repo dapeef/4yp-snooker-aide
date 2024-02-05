@@ -7,20 +7,20 @@ import time
 
 def english_8_ball_table_specs() -> pt.PocketTableSpecs:
     return pt.PocketTableSpecs(
-        l = 1.9812,
-        w = 1.9812 / 2,
-        cushion_width = 2 * 2.54 / 100,
-        cushion_height = 0.64 * 2 * 0.028575,
-        corner_pocket_width = 0.10,
-        corner_pocket_angle = 1,
-        corner_pocket_depth = 0.0398,
-        corner_pocket_radius = 0.124 / 2,
-        corner_jaw_radius = 0.08,
-        side_pocket_width = 0.08,
-        side_pocket_angle = 3,
-        side_pocket_depth = 0.07,
-        side_pocket_radius = 0.129 / 2,
-        side_jaw_radius = 0.03,
+        l = 1.594,
+        w = 0.821,
+        cushion_width = 0.041,
+        cushion_height = 0.031, # 37 to very top
+        corner_pocket_width = 0.1, # 10cm
+        corner_pocket_angle = 23 / 2, # need protractor
+        corner_pocket_depth = 0.055,
+        corner_pocket_radius = 0.06,
+        corner_jaw_radius = 0.063,
+        side_pocket_width = 0.14,
+        side_pocket_angle = 80/2,
+        side_pocket_depth = 0.042,
+        side_pocket_radius = 0.045,
+        side_jaw_radius = 0.042,
     )
 
 def english_8_ball_ball_params(is_cue_ball=False) -> pt.BallParams:
@@ -66,14 +66,14 @@ def get_example_balls():
     positions = [(english_8_ball_ball_params().R, english_8_ball_ball_params().R),
                  (.2, .2),
                  (.4, .4),
-                 (.6, .6),
-                 (.8, .8),
-                 (.9, .8),
-                 (.8, .9),
-                 (.8, 1),
-                 (.8, 1.1),
-                 (.8, 1.2),
-                 (.8, 1.3),
+                 (.55, .55),
+                 (.7, .8),
+                 (.7, .6),
+                 (.7, .9),
+                 (.7, 1),
+                 (.7, 1.1),
+                 (.7, 1.2),
+                 (.7, 1.3),
                  (1.9812/2 - english_8_ball_ball_params().R, 1.9812 - english_8_ball_ball_params().R)
                 ]
 
@@ -104,7 +104,7 @@ def main():
         simulated_shot = pt.simulate(shot)
         
         shot = pt.continuize(simulated_shot)
-    print(time.time() - start)
+    # print(time.time() - start)
     # shot.strike(V0=0)
 
 
