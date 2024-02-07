@@ -78,6 +78,7 @@ class Ui(QMainWindow):
         self.b_slider.valueChanged.connect(
             lambda value: self.update_shot(b=value/self.b_slider.maximum()*self.b_max))
         self.center_button.clicked.connect(lambda: self.update_shot(a=0, b=0))
+        self.is_dragging_spin = False
 
         # Link spin widget click
         self.spin_canvas_widget.mousePressEvent = self.spin_widget_mousedown
@@ -274,8 +275,17 @@ class Ui(QMainWindow):
         # if not theta is None:
         #     self.theta = theta
         # Reset simulation
+
+
         self.shot.reset_balls()
         self.shot.reset_history()
+
+        # Clamp spin values
+        if not a is None:
+            a = min(1, max(-1, a))
+        if not b is None:
+            b = min(1, max(-1, b))
+
 
         # Update simulation parameters
         self.shot.strike(V0=V0, phi=phi, a=a, b=b, theta=theta)
