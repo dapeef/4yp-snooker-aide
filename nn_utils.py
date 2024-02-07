@@ -188,11 +188,29 @@ class EvalImagesDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
+    def get_item_name(self, idx):
+        return self.imgs[idx]
+    
+    def get_image(self, idx):
+        img_name = self.imgs[idx]
+        image_path = os.path.join(self.images_dir, img_name)
+
+        # reading the images and converting them to correct size and color
+        img = cv2.imread(image_path)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
+        # img_res = cv2.resize(img_rgb, (self.width, self.height), cv2.INTER_AREA)
+        # diving by 255
+        return img_rgb / 255.0
+
 
 # Function to visualize bounding boxes in the image
-def plot_img_bbox(img, target):
+def plot_img_bbox(img, target, title=""):
     # plot the image and bboxes
     # Bounding boxes are defined as follows: x-min y-min width height
+    
+    plt.figure(title)
+    plt.title(title)
+
     fig, a = plt.subplots(1,1)
     fig.set_size_inches(5,5)
     a.imshow(img)
@@ -357,6 +375,56 @@ def get_transform(train):
         bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
 
+class EvaluateNet:
+    def __init__(self, model_path, num_classes) -> None:
+        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        print("Device:", device)
+
+        self.model = get_object_detection_model(num_classes)
+
+        checkpoint = torch.load(model_path, map_location=torch.device(device))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.eval()
+
+    def create_dataset(self, image_path):
+        width = 512
+        height = width
+
+        transform = A.Compose(
+            [
+                A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1),
+                ToTensorV2(p=1.0)
+            ],
+            bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
+        )
+
+        self.dataset = EvalImagesDataset(image_path, width, height, transforms=transform)
+
+    def get_boxes(self, image_index):
+        target = evaluate_item(self.model, self.dataset[image_index])
+
+        img = self.dataset.get_image(image_index)
+        height, width, channels = img.shape
+
+        scaled_target = scale_boxes(target, [width, height], [512, 512])
+
+        # Get centres of boxes
+        scaled_target["centres"] = []
+        for box in scaled_target["boxes"]:
+            x = (box[0] + box[2]) / 2
+            y = (box[1] + box[3]) / 2
+            scaled_target["centres"].append([x, y])
+        
+        return scaled_target
+    
+    def get_draw_boxes(self, image_index, title=""):
+        target = self.get_boxes(image_index)
+        img = self.dataset.get_image(image_index)
+
+        plot_result_img_bbox(img, target, title)
+
+        return target
+
 def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=True, overlap_threshold=0):
     def are_boxes_overlapping(box1, box2):
         # box format: [xmin, ymin, xmax, ymax]
@@ -405,7 +473,9 @@ def evaluate_item(model, item):
 
     # plot_result_img_bbox(image.permute(1, 2, 0), targets)
 
-    images = list(img.to("cpu") for img in [image])
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
+    images = list(img.to(device) for img in [image])
 
     with torch.no_grad():
         pred = model(images)
@@ -430,31 +500,3 @@ def scale_boxes(target, image_res, model_res=[244, 244]):
         new_target["boxes"][i][3] *= image_res[1]/model_res[1]
     
     return new_target
-
-def get_boxes(model_path, dataset, image_file, num_classes=2):
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    print("Device:", device)
-
-    model = get_object_detection_model(num_classes)
-
-    checkpoint = torch.load(model_path, map_location=torch.device(device))
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-
-
-    target = evaluate_item(model, dataset[0])
-
-    img = cv2.imread(image_file)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    height, width, channels = img.shape
-
-    scaled_target = scale_boxes(target, [width, height], [512, 512])
-
-    # Get centres of boxes
-    scaled_target["centres"] = []
-    for box in scaled_target["boxes"]:
-        x = (box[0] + box[2]) / 2
-        y = (box[1] + box[3]) / 2
-        scaled_target["centres"].append([x, y])
-
-    return scaled_target

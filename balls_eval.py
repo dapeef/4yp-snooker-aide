@@ -16,31 +16,9 @@ warnings.filterwarnings('ignore')
 
 
 def get_balls(image_file):
-    width = 512
-    height = width
-
-    transform = A.Compose(
-        [
-            A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1),
-            ToTensorV2(p=1.0)
-        ],
-        bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
-    )
-
-    dataset = nn_utils.EvalImagesDataset(image_file, width, height, transforms=transform)
-
-    # img, target = dataset[0]
-    # nn_utils.plot_img_bbox(img.permute(1, 2, 0), target)
-
-    model_path = "./checkpoints/balls_model.pth"
-
-    # num_classes = 2
-
-    target = nn_utils.get_boxes(model_path, dataset, image_file)
-
-    img = cv2.imread(image_file)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    nn_utils.plot_result_img_bbox(img, target, "NN balls")
+    evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model.pth", 2)
+    evaluator.create_dataset(image_file)
+    target = evaluator.get_draw_boxes(0, "NN balls")
     # plt.show()
 
     return target["centres"]

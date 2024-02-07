@@ -16,26 +16,10 @@ warnings.filterwarnings('ignore')
 
 
 def get_pockets(image_file):
-    width = 512
-    height = width
+    evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
+    evaluator.create_dataset(image_file)
+    target = evaluator.get_boxes(0)
 
-    transform = A.Compose(
-        [
-            A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1),
-            ToTensorV2(p=1.0)
-        ],
-        bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
-    )
-
-    dataset = nn_utils.EvalImagesDataset(image_file, width, height, transforms=transform)
-
-    model_path = "./checkpoints/pockets_model.pth"
-
-    # num_classes = 3
-
-    target = nn_utils.get_boxes(model_path, dataset, image_file)
-
-    
     filtered = nn_utils.filter_boxes(target, confidence_threshold=.1)
 
     img = cv2.imread(image_file)
