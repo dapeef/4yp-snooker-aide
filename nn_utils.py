@@ -490,7 +490,7 @@ def evaluate_item(model, item):
     
     return pred[0]
 
-def scale_boxes(target, image_res, model_res=[244, 244]):
+def scale_boxes(target, image_res, model_res=[512, 512]):
     new_target = target.copy()
 
     for i in range(len(target["boxes"])):

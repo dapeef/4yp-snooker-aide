@@ -11,10 +11,10 @@ image_file = "images/terrace.jpg"
 # plt.show()
 
 evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model.pth", 2)
-evaluator.create_dataset("/data/Terrace/raw_images")
+evaluator.create_dataset("./data/terrace/raw_images")
 
 for i in range(len(evaluator.dataset)):
     print(f"Evaluating {i}/{len(evaluator.dataset)}")
     evaluator.get_draw_boxes(i, "NN balls "+str(i))
 
-plt.show()
+    plt.show()
