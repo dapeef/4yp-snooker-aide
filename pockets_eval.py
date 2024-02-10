@@ -14,9 +14,11 @@ def get_pockets(image_file):
 
     filtered = nn_utils.filter_boxes(target, confidence_threshold=.1)
 
+    filtered = nn_utils.get_bbox_centers(filtered)
+
     img = cv2.imread(image_file)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    nn_utils.plot_result_img_bbox(img, filtered, "NN pockets")
+    nn_utils.plot_img_bbox(img, filtered, "NN pockets")
     # plt.show()
 
     return filtered

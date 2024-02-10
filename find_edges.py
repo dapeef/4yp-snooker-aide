@@ -356,7 +356,8 @@ def get_edges(image_file, informing_lines, mask, dilation_dist):
 
     # Mask image with dilated SAM mask
     image = cv2.bitwise_and(image, image, mask=mask)
-    cv2.imwrite(image_file[:-4] + "-masked.png", image)
+    masked_file_name = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
+    cv2.imwrite(masked_file_name, image)
     
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 

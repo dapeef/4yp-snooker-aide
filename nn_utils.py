@@ -14,6 +14,7 @@ import cv2
 # matplotlib for visualization
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.colors as mcolors
 
 # torchvision libraries
 import torch
@@ -283,8 +284,8 @@ class EvalImagesDataset(torch.utils.data.Dataset):
 
         if self.transforms:
             sample = self.transforms(image = img_res,
-                                    bboxes = target['boxes'],
-                                    labels = target["labels"])
+                                     bboxes = target['boxes'],
+                                     labels = target["labels"])
             img_res = sample['image']
             target['boxes'] = torch.Tensor(sample['bboxes'])
         
@@ -305,11 +306,8 @@ class EvalImagesDataset(torch.utils.data.Dataset):
         img_name = self.imgs[idx]
         image_path = os.path.join(self.images_dir, img_name)
 
-        # reading the images and converting them to correct size and color
         img = cv2.imread(image_path)
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
-        # img_res = cv2.resize(img_rgb, (self.width, self.height), cv2.INTER_AREA)
-        # diving by 255
         return img_rgb
 
 
@@ -317,24 +315,44 @@ class EvalImagesDataset(torch.utils.data.Dataset):
 def plot_img_bbox(img, target, title=""):
     # plot the image and bboxes
     # Bounding boxes are defined as follows: x-min y-min width height
-    
-    plt.figure(title)
-    plt.title(title)
 
-    fig, a = plt.subplots(1,1)
+    colors = ["silver", "blue", "green", "gray", "orange", "purple", "pink", "brown", "navy",
+          "cyan", "magenta", "lime", "teal", "black", "maroon", "white", "olive", "red", "yellow"]
+
+    fig, ax = plt.subplots(1,1)
+    plt.title(title)
     fig.set_size_inches(5,5)
-    a.imshow(img)
+    ax.imshow(img)
     for i, box in enumerate(target['boxes']):
+        color = colors[target["labels"][i]]
+
         x, y, width, height = box[0], box[1], box[2]-box[0], box[3]-box[1]
+        x_mid, y_mid = x + width/2, y + height/2
+
+        # Draw bounding box
         rect = patches.Rectangle(
             (x, y),
             width, height,
             linewidth = 2,
-            edgecolor = ['red', 'orange', 'yellow'][target["labels"][i]],
+            edgecolor = color,
             facecolor = 'none'
         )
-        # Draw the bounding box on top of the image
-        a.add_patch(rect)
+        ax.add_patch(rect)
+        
+        # If confidence scores exist, display these as text
+        if "scores" in target:
+            # invert colour
+            rgb = mcolors.to_rgb(color)
+            opposite_color = tuple(1.0 - val for val in rgb)
+
+            plt.text(x_mid, y_mid,
+                     round(float(target["scores"][i]), 3),
+                     ha="center", # text alignment
+                     va="center",
+                     color=opposite_color,
+                     fontsize=6
+            )
+
     # plt.show()
 
 # Function to visualize bounding boxes in the image
@@ -411,7 +429,7 @@ def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2):
     )
 
 
-    # num_classes = 3 # one class (class 0) is dedicated to the "background"
+    # one class (class 0) is dedicated to the "background"
 
     # get the model using our helper function
     model = get_object_detection_model(num_classes)
@@ -484,6 +502,63 @@ def get_transform(train):
         [ToTensorV2(p=1.0)],
         bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
     )
+  
+def get_balls_transform_single(width, height):
+    return A.Compose(
+        [
+            A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1), # Squish aspect ratio
+            # A.augmentations.crops.transforms.RandomSizedCrop([1080, 1080], height, width, w2h_ratio=1.0, interpolation=1, always_apply=False, p=1.0), # Correct aspect ratio
+            A.augmentations.geometric.transforms.ShiftScaleRotate(
+                shift_limit=0.3,
+                scale_limit=[-0.8, 0],
+                rotate_limit=90,
+                interpolation=1,
+                border_mode=cv2.BORDER_CONSTANT,
+                value=None,
+                mask_value=None,
+                shift_limit_x=None,
+                shift_limit_y=None,
+                rotate_method='ellipse',
+                always_apply=False,
+                p=1
+            ),
+            # A.augmentations.geometric.resize.SmallestMaxSize(max_size=1024, interpolation=1, always_apply=False, p=1)
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.5),
+            # ToTensorV2 converts image to pytorch tensor without div by 255
+            ToTensorV2(p=1.0) 
+        ],
+        bbox_params={'format': 'pascal_voc', 'min_visibility': 0.6, 'label_fields': ['labels']}
+    )
+
+def get_balls_transform_multiple(width, height):
+    return A.Compose(
+        [
+            A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1), # Squish aspect ratio
+            # A.augmentations.crops.transforms.RandomSizedCrop([1080, 1080], height, width, w2h_ratio=1.0, interpolation=1, always_apply=False, p=1.0), # Correct aspect ratio
+            # A.augmentations.crops.transforms.Crop(),
+            A.augmentations.geometric.transforms.ShiftScaleRotate(
+                shift_limit=0.3,
+                scale_limit=[-0.5, 0.2],
+                rotate_limit=90,
+                interpolation=1,
+                border_mode=cv2.BORDER_CONSTANT,
+                value=None,
+                mask_value=None,
+                shift_limit_x=None,
+                shift_limit_y=None,
+                rotate_method='ellipse',
+                always_apply=True,
+                p=1
+            ),
+            # A.augmentations.geometric.resize.SmallestMaxSize(max_size=1024, interpolation=1, always_apply=False, p=1)
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.2),
+            # ToTensorV2 converts image to pytorch tensor without div by 255
+            ToTensorV2(p=1.0) 
+        ],
+        bbox_params={'format': 'pascal_voc', 'min_visibility': 0.6, 'label_fields': ['labels']}
+    )
 
 class EvaluateNet:
     def __init__(self, model_path, num_classes=2) -> None:
@@ -517,23 +592,8 @@ class EvaluateNet:
         height, width, channels = img.shape
 
         scaled_target = scale_boxes(target, [width, height], [512, 512])
-
-        # Get centres of boxes
-        scaled_target["centres"] = []
-        for box in scaled_target["boxes"]:
-            x = (box[0] + box[2]) / 2
-            y = (box[1] + box[3]) / 2
-            scaled_target["centres"].append([x, y])
         
         return scaled_target
-    
-    def get_draw_boxes(self, image_index, title=""):
-        target = self.get_boxes(image_index)
-        img = self.dataset.get_image(image_index)
-
-        plot_result_img_bbox(img, target, title)
-
-        return target
 
     def get_save_boxes(self, image_index, dataset_file, confidence_threshold=0.5):
         def transform_bbox(bbox):
@@ -598,10 +658,10 @@ def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=
 
         return True  # Boxes overlap
     
-    new_target = {
-        "boxes": [],
-        "scores": []
-    }
+    new_target = copy.deepcopy(target)
+
+    new_target["boxes"] = []
+    new_target["scores"] = []
 
     for i in range(len(target['boxes'])):
         box = target['boxes'][i]
@@ -609,7 +669,6 @@ def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=
         label = target['labels'][i]
 
         if score >= confidence_threshold and \
-           label == 1 and \
            len(new_target["boxes"]) < max_results:
             
             overlapping = False
@@ -624,6 +683,16 @@ def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=
                 new_target['scores'].append(score)
     
     return new_target
+
+def get_bbox_centers(target):
+    # Get centres of boxes
+    target["centres"] = []
+    for box in target["boxes"]:
+        x = (box[0] + box[2]) / 2
+        y = (box[1] + box[3]) / 2
+        target["centres"].append([x, y])
+
+    return target
 
 def evaluate_item(model, item):
     image = item[0]

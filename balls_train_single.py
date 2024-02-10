@@ -26,32 +26,7 @@ import nn_utils
 width = 512
 height = width
 
-transform = A.Compose(
-    [
-        A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1), # Squish aspect ratio
-        # A.augmentations.crops.transforms.RandomSizedCrop([1080, 1080], height, width, w2h_ratio=1.0, interpolation=1, always_apply=False, p=1.0), # Correct aspect ratio
-        A.augmentations.geometric.transforms.ShiftScaleRotate(
-            shift_limit=0.3,
-            scale_limit=[-0.8, 0],
-            rotate_limit=90,
-            interpolation=1,
-            border_mode=cv2.BORDER_CONSTANT,
-            value=None,
-            mask_value=None,
-            shift_limit_x=None,
-            shift_limit_y=None,
-            rotate_method='ellipse',
-            always_apply=False,
-            p=1
-        ),
-        # A.augmentations.geometric.resize.SmallestMaxSize(max_size=1024, interpolation=1, always_apply=False, p=1)
-        A.HorizontalFlip(p=0.5),
-        A.VerticalFlip(p=0.5),
-        # ToTensorV2 converts image to pytorch tensor without div by 255
-        ToTensorV2(p=1.0) 
-    ],
-    bbox_params={'format': 'pascal_voc', 'min_visibility': 0.6, 'label_fields': ['labels']}
-)
+transform = nn_utils.get_balls_transform_single(width, height)
 
 
 # defining the files directory and testing directory

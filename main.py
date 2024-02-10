@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pockets_eval
 import balls_eval_single
+import balls_eval_multiple
 import cv2
 import json
 
@@ -47,7 +48,7 @@ pockets = pockets_eval.get_pockets(image_file)
 pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
 # plt.show()
 dilation_dist = max_dist / 15
-edges = find_edges.get_edges(image_file, pocket_lines, pocket_mask, dilation_dist)
+# pocket_lines = find_edges.get_edges(image_file, pocket_lines, pocket_mask, dilation_dist) # V janky
 
 
 
@@ -59,7 +60,7 @@ edges = find_edges.get_edges(image_file, pocket_lines, pocket_mask, dilation_dis
 #     [[ 3.21000000e+02,  1.57079637e+00]],
 #     [[ 1.31600000e+03,  0]],
 #     [[ 5.68000000e+02,  0]]]) # lines which don't have 2 pairs parallel
-corners = find_edges.get_rect_corners(edges)
+corners = find_edges.get_rect_corners(pocket_lines)
 # print(corners)
 
 
@@ -114,7 +115,7 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 
 
 # img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
-img_balls = balls_eval_single.get_balls(image_file)
+img_balls = balls_eval_multiple.get_balls(image_file)
 
 
 
