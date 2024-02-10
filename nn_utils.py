@@ -35,8 +35,8 @@ from albumentations.pytorch.transforms import ToTensorV2
 import copy
 
 
-# we create a Dataset class which has a __getitem__ function and a __len__ function
-class TrainImagesDataset(torch.utils.data.Dataset):
+# For training with a single class (eg pockets and old ball detector)
+class TrainImagesDatasetSingle(torch.utils.data.Dataset):
     def __init__(self, files_dir, chosen_class, width, height, transforms=None):
         self.transforms = transforms
         self.images_dir = files_dir + "/images"
@@ -140,9 +140,114 @@ class TrainImagesDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.imgs)
-    
+
+# For multiple classes (eg ball detector AND classifier)
+class TrainImagesDatasetMultiple(torch.utils.data.Dataset):
+    def __init__(self, files_dir, width, height, num_classes, transforms=None):
+        self.transforms = transforms
+        self.images_dir = files_dir + "/images"
+        self.labels_dir = files_dir + "/labels"
+        self.height = height
+        self.width = width
+        
+        # sorting the images for consistency
+        # To get images, the extension of the filename is checked to be jpg
+        self.imgs = [image for image in sorted(os.listdir(self.images_dir)) if image[-4:] == '.jpg']
+
+    def __getitem__(self, idx):
+        img_name = self.imgs[idx]
+        image_path = os.path.join(self.images_dir, img_name)
+
+        # reading the images and converting them to correct size and color
+        img = cv2.imread(image_path)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
+        # img_res = cv2.resize(img_rgb, (self.width, self.height), cv2.INTER_AREA)
+        # dividing by 255
+        img_res = img_rgb / 255.0
+        
+        # annotation file
+        annot_filename = img_name[:-4] + '.txt'
+        annot_file_path = os.path.join(self.labels_dir, annot_filename)
+        
+        boxes = []
+        labels = []
+        
+        # cv2 image gives size as height x width
+        wt = img.shape[1]
+        ht = img.shape[0]
+        
+        # box coordinates for xml files are extracted and corrected for image size given
+        with open(annot_file_path) as f:
+            for line in f:
+                parsed = [float(x) for x in line.split(' ')]
+                
+                labels.append(parsed[0])
+
+                x_center = parsed[1]
+                y_center = parsed[2]
+                box_wt = parsed[3]
+                box_ht = parsed[4]
+
+                xmin = x_center - box_wt/2
+                xmax = x_center + box_wt/2
+                ymin = y_center - box_ht/2
+                ymax = y_center + box_ht/2
+                
+                xmin_corr = int(xmin*wt)
+                xmax_corr = int(xmax*wt)
+                ymin_corr = int(ymin*ht)
+                ymax_corr = int(ymax*ht)
+                
+                if xmax_corr - xmin_corr == 0 or ymax_corr - ymin_corr == 0:
+                    print("YIKES, the bounding box has non-positive width or height:", img_name)
+                
+                boxes.append([xmin_corr, ymin_corr, xmax_corr, ymax_corr])
+
+        # convert boxes into a torch.Tensor
+        boxes = torch.as_tensor(boxes, dtype=torch.float32)
+
+        # getting the areas of the boxes
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+
+        # suppose all instances are not crowd
+        iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+
+        labels = torch.as_tensor(labels, dtype=torch.int64)
+
+        target = {}
+        target["boxes"] = boxes
+        target["labels"] = labels
+        target["area"] = area
+        target["iscrowd"] = iscrowd
+        image_id = torch.tensor([idx])
+        target["image_id"] = image_id
+
+        if self.transforms:
+            sample = self.transforms(image = img_res,
+                                    bboxes = target['boxes'],
+                                    labels = target['labels'])
+            img_res = sample['image']
+            target['labels'] = torch.as_tensor(sample['labels'], dtype=torch.int64)
+            if len(sample['bboxes']) > 0:
+                target['boxes'] = torch.Tensor(sample['bboxes'])
+                boxes = target['boxes']
+                target['area'] = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+            else:
+                target['boxes'] = torch.zeros(0,4)
+                boxes = target['boxes']
+                target['area'] = torch.as_tensor([])
+            target['iscrowd'] = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+        
+        # print(target)
+            
+        return img_res, target
+
+    def __len__(self):
+        return len(self.imgs)
+
+
 class EvalImagesDataset(torch.utils.data.Dataset):
-    def __init__(self, files_dir, width, height, transforms=None):
+    def __init__(self, files_dir, width, height, num_classes=2, transforms=None):
         self.transforms = transforms
         self.height = height
         self.images_dir = files_dir
@@ -381,7 +486,7 @@ def get_transform(train):
     )
 
 class EvaluateNet:
-    def __init__(self, model_path, num_classes) -> None:
+    def __init__(self, model_path, num_classes=2) -> None:
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         print("Device:", device)
 

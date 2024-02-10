@@ -3,7 +3,7 @@ import sam
 import numpy as np
 import matplotlib.pyplot as plt
 import pockets_eval
-import balls_eval
+import balls_eval_single
 import cv2
 import json
 
@@ -114,7 +114,7 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 
 
 # img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
-img_balls = balls_eval.get_balls(image_file)
+img_balls = balls_eval_single.get_balls(image_file)
 
 
 

@@ -62,8 +62,8 @@ test_dir = 'data/Balls - 4792 - above, toy table, stripey balls, very size-sensi
 chosen_class = 0
 
 # construct dataset
-dataset = nn_utils.TrainImagesDataset(files_dir, chosen_class, width, height, transforms=transform)
-dataset_test = nn_utils.TrainImagesDataset(test_dir, chosen_class, width, height, transforms=transform)
+dataset = nn_utils.TrainImagesDatasetSingle(files_dir, chosen_class, width, height, transforms=transform)
+dataset_test = nn_utils.TrainImagesDatasetSingle(test_dir, chosen_class, width, height, transforms=transform)
 print('Length of training dataset:', len(dataset))
 print('Length of test dataset:', len(dataset_test))
 
@@ -82,7 +82,7 @@ print('Length of test dataset:', len(dataset_test))
 #     plt.show()
 
 # Load from last checkpoint
-checkpoint_file = "./checkpoints/balls_model.pth"
+checkpoint_file = "./checkpoints/balls_model_single.pth"
 
 # training for 5 epochs
 num_epochs = 100

@@ -1,7 +1,7 @@
 import nn_utils
 
 def create_balls_dataset(image_directory, output_directory):
-    evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model.pth", 2)
+    evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_single.pth")
     evaluator.create_dataset(image_directory)
 
     for i in range(len(evaluator.dataset)):

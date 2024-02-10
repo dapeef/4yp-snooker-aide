@@ -43,8 +43,8 @@ test_dir = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/t
 chosen_class = 1
 
 # construct dataset
-dataset = nn_utils.TrainImagesDataset(files_dir, chosen_class, width, height, transforms=transform)
-dataset_test = nn_utils.TrainImagesDataset(test_dir, chosen_class, width, height, transforms=transform)
+dataset = nn_utils.TrainImagesDatasetSingle(files_dir, chosen_class, width, height, transforms=transform)
+dataset_test = nn_utils.TrainImagesDatasetSingle(test_dir, chosen_class, width, height, transforms=transform)
 print('Length of training dataset:', len(dataset))
 print('Length of test dataset:', len(dataset_test))
 
