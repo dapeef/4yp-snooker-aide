@@ -662,6 +662,7 @@ def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=
 
     new_target["boxes"] = []
     new_target["scores"] = []
+    new_target["labels"] = []
 
     for i in range(len(target['boxes'])):
         box = target['boxes'][i]
@@ -681,18 +682,21 @@ def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=
             if not overlapping:
                 new_target['boxes'].append(box)
                 new_target['scores'].append(score)
+                new_target['labels'].append(label)
     
     return new_target
 
 def get_bbox_centers(target):
-    # Get centres of boxes
-    target["centres"] = []
+    # Get centers of boxes
+    target_new = copy.deepcopy(target)
+
+    target_new["centers"] = []
     for box in target["boxes"]:
         x = (box[0] + box[2]) / 2
         y = (box[1] + box[3]) / 2
-        target["centres"].append([x, y])
+        target_new["centers"].append([x, y])
 
-    return target
+    return target_new
 
 def evaluate_item(model, item):
     image = item[0]

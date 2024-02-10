@@ -242,7 +242,7 @@ def get_lines_from_pockets(image_file, pockets):
     #  [[-1.3160000e+03  2.8797932e+00]]
     #  [[ 5.6600000e+02  2.9670596e-01]]]
 
-    # Get centres of boxes
+    # Get centers of boxes
     pocket_points = []
     for box in pockets["boxes"]:
         x = (box[0] + box[2]) / 2
@@ -579,7 +579,7 @@ def get_world_point(image_point, homography):
     x_world = world_pts_normalized[0]
     y_world = world_pts_normalized[1]
 
-    return [x_world, y_world]
+    return np.array([x_world, y_world])
 
 def find_balls(image_file):
     # Read the image

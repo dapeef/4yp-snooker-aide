@@ -9,6 +9,9 @@ import pooltool as pt
 import math
 import pooltool_test as pt_utils
 import time
+import nn_utils
+import find_edges
+import numpy as np
 
 
 class Ui(QMainWindow):
@@ -170,8 +173,88 @@ class Ui(QMainWindow):
             self.top_thickness = min([self.top_thickness, *start, *end])
             self.cushion_thickness = self.canvas_padding - self.top_thickness
 
+        # Cushion width in meters
+        self.cushion_thickness_real = pt_utils.english_8_ball_table_specs().cushion_width
+
         # Do initial update of the GUI
         self.update_time(set_time=0)
+
+
+        # Initialise NN models
+        self.pocket_evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
+        self.balls_evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_multiple.pth", 20)
+
+        self.balls_class_conversion = ['1', '10', '11', '12', '13', '14', '15', '2', '3', '4', '5', '6', '7', '8', '9', 'cue', 'rack', 'red', 'yellow']
+
+        # Set up from initial image
+        self.process_image("./images/terrace.jpg")
+
+
+    def get_pockets(self, image_file):
+        self.pocket_evaluator.create_dataset(image_file)
+        target = self.pocket_evaluator.get_boxes(0)
+
+        target = nn_utils.filter_boxes(target, confidence_threshold=.1)
+        target = nn_utils.get_bbox_centers(target)
+
+        return target
+    
+    def get_balls(self, image_file):
+        self.balls_evaluator.create_dataset(image_file)
+        target = self.balls_evaluator.get_boxes(0)
+
+        target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
+        target = nn_utils.get_bbox_centers(target)
+
+        return target
+
+    def process_image(self, image_file):
+        # Evaluate NNs
+        pockets_target = self.get_pockets(image_file)
+        balls_target = self.get_balls(image_file)
+
+        # Get corner points from pocket output
+        pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
+        corners = find_edges.get_rect_corners(pocket_lines)
+
+        # Get homography between pixelspace and tablespace
+        table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
+        homography = find_edges.get_homography(corners, table_size)
+        balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
+
+        # Process all balls
+        balls = {}
+
+        red_id = 1
+        yellow_id = 9
+
+        for i in range(len(balls_target["labels"])):
+            label = balls_target["labels"][i]
+            ball_type = self.balls_class_conversion[label]
+            img_center = balls_target["centers"][i]
+            real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
+
+            #TODO add catches for too many cue balls etc
+            if ball_type == "cue":
+                ball_id = "cue"
+            elif ball_type == "red":
+                ball_id = red_id
+                red_id += 1
+            elif ball_type == "yellow":
+                ball_id = yellow_id
+                yellow_id += 1
+            elif ball_type == "8":
+                ball_id = 8
+
+            ball_id = str(ball_id)
+
+            balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
+
+        self.create_shot(balls)
+
+        self.update_shot()
+
+        self.shot.save("./temp/shot.json")
 
 
     def update_time(self, set_time=None, rel_time=None, slider_set=False):

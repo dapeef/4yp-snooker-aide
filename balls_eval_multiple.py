@@ -30,7 +30,7 @@ def filter_show(target, image_file, confidence_threshold):
     # img = evaluator.dataset.get_image(0) / 255
     img = cv2.imread(image_file)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    nn_utils.plot_img_bbox(img, target, f"NN balls with confidence of {confidence_threshold}")
+    nn_utils.plot_img_bbox(img, target, f"NN balls with confidence >= {confidence_threshold}")
     # plt.show()
 
     return target
@@ -39,7 +39,7 @@ def get_balls(image_file, confidence_threshold=0.5):
     target = evaluate(image_file)
     target = filter_show(target, image_file, confidence_threshold)
 
-    return target["centres"]
+    return target
 
 
 def _test():
