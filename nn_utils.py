@@ -32,6 +32,8 @@ import transforms as T
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
+import copy
+
 
 # we create a Dataset class which has a __getitem__ function and a __len__ function
 class TrainImagesDataset(torch.utils.data.Dataset):
@@ -188,8 +190,11 @@ class EvalImagesDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
-    def get_item_name(self, idx):
+    def get_image_name(self, idx):
         return self.imgs[idx]
+    
+    def get_label_name(self, idx):
+        return self.imgs[idx][:-4] + '.txt'
     
     def get_image(self, idx):
         img_name = self.imgs[idx]
@@ -200,7 +205,7 @@ class EvalImagesDataset(torch.utils.data.Dataset):
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         # img_res = cv2.resize(img_rgb, (self.width, self.height), cv2.INTER_AREA)
         # diving by 255
-        return img_rgb / 255.0
+        return img_rgb
 
 
 # Function to visualize bounding boxes in the image
@@ -425,6 +430,54 @@ class EvaluateNet:
 
         return target
 
+    def get_save_boxes(self, image_index, dataset_file, confidence_threshold=0.5):
+        def transform_bbox(bbox):
+            # Assuming bbox is your bounding box coordinates [xmin, ymin, xmax, ymax]
+            xmin, ymin, xmax, ymax = bbox
+
+            # Calculate center coordinates
+            x_center = (xmin + xmax) / 2
+            y_center = (ymin + ymax) / 2
+
+            # Calculate width and height
+            box_wt = xmax - xmin
+            box_ht = ymax - ymin
+
+            # Update parsed array with calculated values
+            return [x_center, y_center, box_wt, box_ht]
+
+
+        img = self.dataset.get_image(image_index)
+        height, width, channels =  img.shape
+
+        unscaled_target = self.get_boxes(image_index)
+        target = scale_boxes(unscaled_target, [1, 1], [width, height])
+        
+        out_str = ""
+
+        for i in range(len(target["labels"])):
+            # print(target["scores"][i])
+            if target["scores"][i] >= confidence_threshold:
+                xmin, ymin, xmax, ymax = unscaled_target["boxes"][i]
+
+                subimage = img[int(ymin):int(ymax), int(xmin):int(xmax)]
+
+                out_str += rudimentary_classify_ball_color(subimage)
+
+                for coord in transform_bbox(target["boxes"][i]):
+                    out_str += " " + str(float(coord))
+                
+                out_str += "\n"
+
+        out_str = out_str[:-1]
+        
+        image_file = os.path.join(dataset_file, "images", self.dataset.get_image_name(image_index))
+        label_file = os.path.join(dataset_file, "labels", self.dataset.get_label_name(image_index))
+
+        cv2.imwrite(image_file, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        with open(label_file, 'w') as file:
+            file.write(out_str)
+
 def filter_boxes(target, max_results=6, confidence_threshold=0, remove_overlaps=True, overlap_threshold=0):
     def are_boxes_overlapping(box1, box2):
         # box format: [xmin, ymin, xmax, ymax]
@@ -476,6 +529,7 @@ def evaluate_item(model, item):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     images = list(img.to(device) for img in [image])
+    model.to(device)
 
     with torch.no_grad():
         pred = model(images)
@@ -491,7 +545,7 @@ def evaluate_item(model, item):
     return pred[0]
 
 def scale_boxes(target, image_res, model_res=[512, 512]):
-    new_target = target.copy()
+    new_target = copy.deepcopy(target)
 
     for i in range(len(target["boxes"])):
         new_target["boxes"][i][0] *= image_res[0]/model_res[0]
@@ -500,3 +554,56 @@ def scale_boxes(target, image_res, model_res=[512, 512]):
         new_target["boxes"][i][3] *= image_res[1]/model_res[1]
     
     return new_target
+
+def rudimentary_classify_ball_color(rgb_img):
+    def get_pixel_count(image, lower_color, upper_color):
+        mask = cv2.inRange(image, lower_color, upper_color)
+        return cv2.countNonZero(mask)
+
+    img = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2HSV)
+    img[:, :, 1] *= 255 # For some reason the saturation range is [0, 1] ??
+    
+    # plt.figure()
+    # plt.imshow(img.astype(int))
+    # # plt.show()
+
+    # Define color ranges for red, yellow, black, and white balls in HSV space
+    lower_red_1 = np.array([0, 50, 50]) # [0-180], [0, 255], [0, 255]
+    upper_red_1 = np.array([20, 255, 255])
+    lower_red_2 = np.array([160, 50, 50]) # top range of the scale
+    upper_red_2 = np.array([180, 255, 255])
+    
+    lower_yellow = np.array([20, 50, 20])
+    upper_yellow = np.array([50, 255, 255])
+    
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([180, 255, 30])
+    
+    lower_white = np.array([0, 0, 250])
+    upper_white = np.array([180, 20, 255])
+    
+    # Get pixel counts for each color
+    red_pixel_count = get_pixel_count(img, lower_red_1, upper_red_1) + get_pixel_count(img, lower_red_2, upper_red_2)
+    yellow_pixel_count = get_pixel_count(img, lower_yellow, upper_yellow)
+    black_pixel_count = get_pixel_count(img, lower_black, upper_black)
+    white_pixel_count = get_pixel_count(img, lower_white, upper_white)
+    
+    # Determine the color of the ball based on the pixel counts
+    color_counts = { 
+        "1": red_pixel_count, # "red"
+        "2": yellow_pixel_count, # yellow
+        "3": black_pixel_count, # 8
+        "4": white_pixel_count # cue
+    }
+    
+    # Return the color with the maximum pixel count
+    ball_color = max(color_counts, key=color_counts.get)
+
+    # print(ball_color)
+
+    # plt.figure(ball_color)
+    # plt.title(ball_color)
+    # plt.imshow(rgb_img.astype(int))
+    # plt.show()
+
+    return ball_color

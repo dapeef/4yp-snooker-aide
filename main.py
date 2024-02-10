@@ -9,11 +9,11 @@ import json
 
 
 
-image_file = "images\\snooker1.png"
-image_file = "images\\terrace.jpg"
-# image_file = 'data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
-# image_file = "images\\snooker2.jpg"
-# image_file = "images/home_table3.jpg"
+image_file = "./images/snooker1.png"
+image_file = "./images/terrace.jpg"
+# image_file = './data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
+# image_file = "./images/snooker2.jpg"
+# image_file = "./images/home_table3.jpg"
 
 
 
@@ -26,7 +26,7 @@ image = cv2.imread(image_file)
 #     input_points = np.array([[600, 600], [1300, 600], [1625, 855]]),
 #     input_labels = np.array([1, 1, 0])) # 1=foreground, 0=background
 
-# image_file = "images\\snooker3.png"
+# image_file = "images/snooker3.png"
 # sam.create_mask(
 #     image_file=image_file,
 #     input_points = np.array([[600, 600], [1850, 250]]),

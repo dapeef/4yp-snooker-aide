@@ -1,3 +1,4 @@
+import cv2
 import nn_utils
 
 # for ignoring warnings
