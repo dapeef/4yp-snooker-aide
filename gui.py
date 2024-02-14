@@ -12,6 +12,13 @@ import time
 import nn_utils
 import find_edges
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import matplotlib.colors as mcolors
+from PyQt5.QtWidgets import QVBoxLayout
+import cv2
 
 
 class Ui(QMainWindow):
@@ -49,6 +56,10 @@ class Ui(QMainWindow):
         self.canvas_widget.paintEvent = self.draw_table_canvas
 
         self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
+
+        # Link image button events to functions
+        self.load_image_button.clicked.connect(self.load_button_clicked)
+        self.image_name.returnPressed.connect(self.load_button_clicked)
 
         # Link time button events to functions
         self.time_slider.valueChanged.connect(
@@ -187,7 +198,7 @@ class Ui(QMainWindow):
         self.balls_class_conversion = ['1', '10', '11', '12', '13', '14', '15', '2', '3', '4', '5', '6', '7', '8', '9', 'cue', 'rack', 'red', 'yellow']
 
         # Set up from initial image
-        self.process_image("./images/terrace.jpg")
+        self.load_button_clicked()
 
 
     def get_pockets(self, image_file):
@@ -234,27 +245,110 @@ class Ui(QMainWindow):
             img_center = balls_target["centers"][i]
             real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
 
-            #TODO add catches for too many cue balls etc
-            if ball_type == "cue":
-                ball_id = "cue"
-            elif ball_type == "red":
-                ball_id = red_id
-                red_id += 1
-            elif ball_type == "yellow":
-                ball_id = yellow_id
-                yellow_id += 1
-            elif ball_type == "8":
-                ball_id = 8
+            if real_center[0] >= 0 and \
+               real_center[1] >= 0 and \
+               real_center[0] <= table_size[0] and \
+               real_center[1] <= table_size[1]:
 
-            ball_id = str(ball_id)
+                #TODO add catches for too many cue balls etc
+                if ball_type == "cue":
+                    ball_id = "cue"
+                elif ball_type == "red":
+                    ball_id = red_id
+                    red_id += 1
+                elif ball_type == "yellow":
+                    ball_id = yellow_id
+                    yellow_id += 1
+                elif ball_type == "8":
+                    ball_id = 8
 
-            balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
+                ball_id = str(ball_id)
 
-        self.create_shot(balls)
+                balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
+
+        # self.create_shot(balls)
+            
+        self.shot.balls = balls
 
         self.update_shot()
 
-        self.shot.save("./temp/shot.json")
+        # self.shot.save("./temp/shot.json")
+        
+        # Draw NN output for the pockets
+        img = cv2.imread(image_file)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        self.plot_img_bbox(self.pockets_widget, img, pockets_target, "NN pocket locations")
+        # And for the balls
+        self.plot_img_bbox(self.balls_widget, img, balls_target, "NN ball locations")
+
+    def load_button_clicked(self):
+        # Update button text
+        self.load_image_button.setText("Loading...")
+
+        # Load image
+        image_file = os.path.join("./images", self.image_name.text())
+        self.process_image(image_file)
+
+        # Update button text
+        self.load_image_button.setText("Load")
+
+
+    def plot_img_bbox(self, widget, img, target, title=""):
+        # Clear the layout of the widget
+        layout = widget.layout()
+        if layout:
+            while layout.count():
+                item = layout.takeAt(0)
+                print(item)
+                widget.layout().removeItem(item)
+                widget.layout().removeWidget(item.widget())
+        else:
+            layout = QVBoxLayout()
+
+        colors = ["silver", "blue", "green", "gray", "orange", "purple", "pink", "brown", "navy",
+                  "cyan", "magenta", "lime", "teal", "black", "maroon", "white", "olive", "red", "yellow"]
+
+        figure = plt.figure()
+        ax = figure.add_subplot(111)
+
+        ax.set_title(title)
+        ax.imshow(img)
+
+        for i, box in enumerate(target['boxes']):
+            color = colors[target["labels"][i]]
+
+            x, y, width, height = box[0], box[1], box[2] - box[0], box[3] - box[1]
+            x_mid, y_mid = x + width / 2, y + height / 2
+
+            rect = patches.Rectangle(
+                (x, y),
+                width, height,
+                linewidth=2,
+                edgecolor=color,
+                facecolor='none'
+            )
+            ax.add_patch(rect)
+
+            # If confidence scores exist, display these as text
+            if "scores" in target:
+                # invert colour
+                rgb = mcolors.to_rgb(color)
+                opposite_color = tuple(1.0 - val for val in rgb)
+
+                plt.text(x_mid, y_mid,
+                        round(float(target["scores"][i]), 3),
+                        ha="center", # text alignment
+                        va="center",
+                        color=opposite_color,
+                        fontsize=6
+                )
+
+        canvas = FigureCanvas(figure)
+        toolbar = NavigationToolbar(canvas, widget)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+        widget.setLayout(layout)
+        canvas.draw()
 
 
     def update_time(self, set_time=None, rel_time=None, slider_set=False):
