@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1355</width>
-    <height>985</height>
+    <height>1027</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -100,11 +100,22 @@
               </layout>
              </item>
              <item>
-              <widget class="QPushButton" name="load_image_button">
-               <property name="text">
-                <string>Load</string>
-               </property>
-              </widget>
+              <layout class="QHBoxLayout" name="horizontalLayout_7">
+               <item>
+                <widget class="QPushButton" name="load_image_button">
+                 <property name="text">
+                  <string>Load from image</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="load_webcam_button">
+                 <property name="text">
+                  <string>Load from webcam</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
             </layout>
            </widget>

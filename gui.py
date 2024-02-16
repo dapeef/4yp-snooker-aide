@@ -58,8 +58,12 @@ class Ui(QMainWindow):
         self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
 
         # Link image button events to functions
-        self.load_image_button.clicked.connect(self.load_button_clicked)
         self.image_name.returnPressed.connect(self.load_button_clicked)
+        self.load_image_button.clicked.connect(self.load_button_clicked)
+        self.load_webcam_button.clicked.connect(self.load_webcam_clicked)
+
+        # Temp file for the webcam image
+        self.temp_webcam_file_name = "./temp/webcam_image.jpg"
 
         # Link time button events to functions
         self.time_slider.valueChanged.connect(
@@ -271,90 +275,7 @@ class Ui(QMainWindow):
         pockets_target = self.get_pockets(image_file)
         balls_target = self.get_balls(image_file)
 
-
-        # Get corner points from pocket output
-        pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
-        corners = find_edges.get_rect_corners(pocket_lines)
-
-
-        # Get homography between pixelspace and tablespace
-        table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
-        homography = find_edges.get_homography(corners, table_size)
-
-
-        # Process all balls
-        # Inflate ball radius slightly so it moves the balls far enough away from cushions
-        ball_radius = pt_utils.english_8_ball_ball_params().R + self.simulation_nudge
-
-        balls = {}
-
-        red_id = 1
-        yellow_id = 9
-
-        for i in range(len(balls_target["labels"])):
-            label = balls_target["labels"][i]
-            ball_type = self.balls_class_conversion[label]
-            img_center = balls_target["centers"][i]
-            real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
-
-            move_count = 1
-            total_move_count = 0
-
-            while move_count >= 1:
-                move_count = 0
-
-                # Jiggle position to remove ball-round_cushion overlaps
-                for ball_id, ball in balls.items():
-                    vec = circle_circle_overlap_vector(real_center, ball_radius, ball.state.rvw[0][:2], ball.params.R)
-                    if not (vec==np.array([0,0])).all():
-                        move_count += 1
-                    real_center += vec
-
-                # Jiggle position to remove ball-round_cushion overlaps
-                for line_id, line_info in self.shot.table.cushion_segments.circular.items():
-                    vec = circle_circle_overlap_vector(real_center, ball_radius, line_info.center[:2], line_info.radius)
-                    if not (vec==np.array([0,0])).all():
-                        move_count += 1
-                    real_center += vec
-
-                # Jiggle position to remove ball-line_cushion overlaps
-                for line_id, line_info in self.shot.table.cushion_segments.linear.items():
-                    vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
-                    if not (vec==np.array([0,0])).all():
-                        move_count += 1
-                    real_center += vec
-
-                total_move_count += move_count
-
-                if total_move_count >= 1000:
-                    print(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
-                    break
-
-            if real_center[0] >= 0 and \
-               real_center[1] >= 0 and \
-               real_center[0] <= table_size[0] and \
-               real_center[1] <= table_size[1]:
-
-                #TODO add catches for too many cue balls etc
-                if ball_type == "cue":
-                    ball_id = "cue"
-                elif ball_type == "red":
-                    ball_id = red_id
-                    red_id += 1
-                elif ball_type == "yellow":
-                    ball_id = yellow_id
-                    yellow_id += 1
-                elif ball_type == "8":
-                    ball_id = 8
-
-                ball_id = str(ball_id)
-
-                balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
-
-        self.shot.balls = balls
-        self.update_shot()
-
-
+        
         # Draw NN output for the pockets
         img = cv2.imread(image_file)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -362,16 +283,115 @@ class Ui(QMainWindow):
         # And for the balls
         self.plot_img_bbox(self.balls_widget, img, balls_target, "NN ball locations")
 
+        try:
+            # Get corner points from pocket output
+            pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
+            corners = find_edges.get_rect_corners(pocket_lines)
+
+
+            # Get homography between pixelspace and tablespace
+            table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
+            homography = find_edges.get_homography(corners, table_size)
+
+
+            # Process all balls
+            # Inflate ball radius slightly so it moves the balls far enough away from cushions
+            ball_radius = pt_utils.english_8_ball_ball_params().R + self.simulation_nudge
+
+            balls = {}
+
+            red_id = 1
+            yellow_id = 9
+
+            for i in range(len(balls_target["labels"])):
+                label = balls_target["labels"][i]
+                ball_type = self.balls_class_conversion[label]
+                img_center = balls_target["centers"][i]
+                real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
+
+                move_count = 1
+                total_move_count = 0
+
+                while move_count >= 1:
+                    move_count = 0
+
+                    # Jiggle position to remove ball-round_cushion overlaps
+                    for ball_id, ball in balls.items():
+                        vec = circle_circle_overlap_vector(real_center, ball_radius, ball.state.rvw[0][:2], ball.params.R)
+                        if not (vec==np.array([0,0])).all():
+                            move_count += 1
+                        real_center += vec
+
+                    # Jiggle position to remove ball-round_cushion overlaps
+                    for line_id, line_info in self.shot.table.cushion_segments.circular.items():
+                        vec = circle_circle_overlap_vector(real_center, ball_radius, line_info.center[:2], line_info.radius)
+                        if not (vec==np.array([0,0])).all():
+                            move_count += 1
+                        real_center += vec
+
+                    # Jiggle position to remove ball-line_cushion overlaps
+                    for line_id, line_info in self.shot.table.cushion_segments.linear.items():
+                        vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
+                        if not (vec==np.array([0,0])).all():
+                            move_count += 1
+                        real_center += vec
+
+                    total_move_count += move_count
+
+                    if total_move_count >= 1000:
+                        print(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
+                        break
+
+                if real_center[0] >= 0 and \
+                real_center[1] >= 0 and \
+                real_center[0] <= table_size[0] and \
+                real_center[1] <= table_size[1]:
+
+                    #TODO add catches for too many cue balls etc
+                    if ball_type == "cue":
+                        ball_id = "cue"
+                    elif ball_type == "red":
+                        ball_id = red_id
+                        red_id += 1
+                    elif ball_type == "yellow":
+                        ball_id = yellow_id
+                        yellow_id += 1
+                    elif ball_type == "8":
+                        ball_id = 8
+
+                    ball_id = str(ball_id)
+
+                    balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
+
+            self.shot.balls = balls
+            self.update_shot()
+
+        except AssertionError as e:
+            print(e)
+
     def load_button_clicked(self):
-        # Update button text
-        self.load_image_button.setText("Loading...")
+        # # Update button text
+        # self.load_image_button.setText("Loading...")
 
         # Load image
         image_file = os.path.join("./images", self.image_name.text())
         self.process_image(image_file)
 
-        # Update button text
-        self.load_image_button.setText("Load")
+        # # Update button text
+        # self.load_image_button.setText("Load")
+
+    def load_webcam_clicked(self):
+        # Save webcam image
+        cap = cv2.VideoCapture(1) # TODO add a dropdown or smth to choose the correct webcam
+        # time.sleep(2) # Tried to fix exposure but didn't help
+        ret, img = cap.read()
+        cap.release()
+
+        if ret:
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            cv2.imwrite(self.temp_webcam_file_name, img)
+
+        self.process_image(self.temp_webcam_file_name)
 
 
     def plot_img_bbox(self, widget, img, target, title=""):
@@ -471,8 +491,9 @@ class Ui(QMainWindow):
 
 
     def disable_enable_all(self, enabled):
-        self.load_image_button.setEnabled(enabled)
         self.image_name.setEnabled(enabled)
+        self.load_image_button.setEnabled(enabled)
+        self.load_webcam_button.setEnabled(enabled)
 
         self.time_slider.setEnabled(enabled)
         self.plus001.setEnabled(enabled)
