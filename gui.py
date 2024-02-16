@@ -169,7 +169,8 @@ class Ui(QMainWindow):
         # Clockwise, starting with the left-most side of the top-left pocket sides
         self.cushion_polarity = [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0]
 
-
+        # How much to nudge balls by when fixing overlaps
+        self.simulation_nudge = 0.0001
 
         # Calculate top and cushion thickness
         self.top_thickness = self.canvas_widget.height()
@@ -220,20 +221,61 @@ class Ui(QMainWindow):
         return target
 
     def process_image(self, image_file):
+        def circle_line_overlap_vector(circle_center, radius, p1, p2):
+            """Calculate the vector to move the circle to resolve overlap with the line segment."""
+            p1 = p1[:2]
+            p2 = p2[:2]
+
+            # Vector representing the line segment
+            line_vector = p2 - p1
+            # Vector from the start of the line segment to the center of the circle
+            start_to_center = circle_center - p1
+            # Projection of start_to_center onto the line_vector
+            projection = np.dot(start_to_center, line_vector) / np.dot(line_vector, line_vector)
+
+            if projection < 0:
+                closest_point = p1
+            elif projection > 1:
+                closest_point = p2
+            else:
+                closest_point = p1 + projection * line_vector
+            
+            # Vector from the center of the circle to the closest point on the line segment
+            closest_vector = circle_center - closest_point
+
+            dist = np.linalg.norm(closest_vector)
+
+            # print(dist, closest_point, projection)
+
+            if dist > radius:
+                return np.array([0, 0])
+            
+            else:
+                # Calculate the vector to move the circle
+                move_vector = closest_vector/dist * (radius - dist)
+                
+                return move_vector
+        
+
         # Evaluate NNs
         pockets_target = self.get_pockets(image_file)
         balls_target = self.get_balls(image_file)
+
 
         # Get corner points from pocket output
         pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
         corners = find_edges.get_rect_corners(pocket_lines)
 
+
         # Get homography between pixelspace and tablespace
         table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
         homography = find_edges.get_homography(corners, table_size)
-        balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
+
 
         # Process all balls
+        # Inflate ball radius slightly so it moves the balls far enough away from cushions
+        ball_radius = pt_utils.english_8_ball_ball_params().R + self.simulation_nudge
+
         balls = {}
 
         red_id = 1
@@ -244,6 +286,29 @@ class Ui(QMainWindow):
             ball_type = self.balls_class_conversion[label]
             img_center = balls_target["centers"][i]
             real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
+
+            move_count = 1
+            total_move_count = 0
+
+            while move_count >= 1:
+                move_count = 0
+
+                # Jiggle position to remove ball-ball and ball-cushion overlaps
+                for line_id, line_info in self.shot.table.cushion_segments.linear.items():
+                    vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
+
+                    if not (vec==np.array([0,0])).all():
+                        move_count += 1
+                    # print(ball_radius, real_center, img_center, line_id, line_info.p1[:2], line_info.p2[:2], vec)
+
+                    real_center += vec
+
+                total_move_count += move_count
+
+                if total_move_count >= 100:
+                    raise Exception(f"Can't place ball - can't wiggle it into a suitable place. Trying to place at {real_center}")
+
+            # real_center = real_center[:2]
 
             if real_center[0] >= 0 and \
                real_center[1] >= 0 and \
@@ -266,14 +331,10 @@ class Ui(QMainWindow):
 
                 balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
 
-        # self.create_shot(balls)
-            
         self.shot.balls = balls
-
         self.update_shot()
 
-        # self.shot.save("./temp/shot.json")
-        
+
         # Draw NN output for the pockets
         img = cv2.imread(image_file)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -299,7 +360,6 @@ class Ui(QMainWindow):
         if layout:
             while layout.count():
                 item = layout.takeAt(0)
-                print(item)
                 widget.layout().removeItem(item)
                 widget.layout().removeWidget(item.widget())
         else:
@@ -391,6 +451,9 @@ class Ui(QMainWindow):
 
 
     def disable_enable_all(self, enabled):
+        self.load_image_button.setEnabled(enabled)
+        self.image_name.setEnabled(enabled)
+
         self.time_slider.setEnabled(enabled)
         self.plus001.setEnabled(enabled)
         self.plus01.setEnabled(enabled)
@@ -401,9 +464,7 @@ class Ui(QMainWindow):
         self.start_time_button.setEnabled(enabled)
         self.end_time_button.setEnabled(enabled)
         self.play_button.setEnabled(enabled)
-        # self.stop_button.setEnabled(enabled)
 
-        # Link shot button events to functions
         self.V0_slider.setEnabled(enabled)
         self.phi_slider.setEnabled(enabled)
         self.phi_plus001.setEnabled(enabled)
