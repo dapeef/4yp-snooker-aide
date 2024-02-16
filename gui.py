@@ -245,7 +245,6 @@ class Ui(QMainWindow):
 
             dist = np.linalg.norm(closest_vector)
 
-            # print(dist, closest_point, projection)
 
             if dist > radius:
                 return np.array([0, 0])
@@ -255,6 +254,17 @@ class Ui(QMainWindow):
                 move_vector = closest_vector/dist * (radius - dist)
                 
                 return move_vector
+        
+        def circle_circle_overlap_vector(c1, r1, c2, r2):
+            # Work out how far to move c1 to make it fit next to c2
+            c2_c1 = c1 - c2
+            dist = np.linalg.norm(c2_c1)
+
+            if dist > r1 + r2:
+                return np.array([0, 0])
+            else:
+                return c2_c1/dist * (r1 + r2 - dist)
+
         
 
         # Evaluate NNs
@@ -293,22 +303,32 @@ class Ui(QMainWindow):
             while move_count >= 1:
                 move_count = 0
 
-                # Jiggle position to remove ball-ball and ball-cushion overlaps
-                for line_id, line_info in self.shot.table.cushion_segments.linear.items():
-                    vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
-
+                # Jiggle position to remove ball-round_cushion overlaps
+                for ball_id, ball in balls.items():
+                    vec = circle_circle_overlap_vector(real_center, ball_radius, ball.state.rvw[0][:2], ball.params.R)
                     if not (vec==np.array([0,0])).all():
                         move_count += 1
-                    # print(ball_radius, real_center, img_center, line_id, line_info.p1[:2], line_info.p2[:2], vec)
+                    real_center += vec
 
+                # Jiggle position to remove ball-round_cushion overlaps
+                for line_id, line_info in self.shot.table.cushion_segments.circular.items():
+                    vec = circle_circle_overlap_vector(real_center, ball_radius, line_info.center[:2], line_info.radius)
+                    if not (vec==np.array([0,0])).all():
+                        move_count += 1
+                    real_center += vec
+
+                # Jiggle position to remove ball-line_cushion overlaps
+                for line_id, line_info in self.shot.table.cushion_segments.linear.items():
+                    vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
+                    if not (vec==np.array([0,0])).all():
+                        move_count += 1
                     real_center += vec
 
                 total_move_count += move_count
 
-                if total_move_count >= 100:
-                    raise Exception(f"Can't place ball - can't wiggle it into a suitable place. Trying to place at {real_center}")
-
-            # real_center = real_center[:2]
+                if total_move_count >= 1000:
+                    print(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
+                    break
 
             if real_center[0] >= 0 and \
                real_center[1] >= 0 and \
