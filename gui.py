@@ -719,13 +719,13 @@ class Ui(QMainWindow):
         painter.setRenderHint(QPainter.Antialiasing)
 
         pen = QPen()
-        pen.setColor(QColor("white"))
+        pen.setColor(QColor("black"))
         pen.setWidth(1)
         painter.setPen(pen)  # White color
         painter.setBrush(QBrush(QColor("white")))  # White color
 
         # Draw the circle
-        circle_radius = min(self.spin_canvas_widget.width(), self.spin_canvas_widget.height()) / 2 - 1
+        circle_radius = min(self.spin_canvas_widget.width(), self.spin_canvas_widget.height()) / 2 - 2
         circle_center = self.spin_canvas_widget.rect().center()
         painter.drawEllipse(circle_center, circle_radius, circle_radius)
 

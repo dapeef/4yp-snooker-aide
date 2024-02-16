@@ -331,6 +331,7 @@ def get_lines_from_pockets(image_file, pockets):
     lines = standardise_lines(lines)
 
     image = cv2.imread(image_file)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     plt.figure("Lines from NN pockets")
     plt.title("Lines from NN pockets")

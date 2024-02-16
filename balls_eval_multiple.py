@@ -43,7 +43,7 @@ def get_balls(image_file, confidence_threshold=0.5):
 
 
 def _test():
-    image_file = "./images/terrace2.jpg"
+    image_file = "./images/snooker2.jpg"
 
     target = evaluate(image_file)
 
