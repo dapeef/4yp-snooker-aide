@@ -54,8 +54,10 @@ class Ui(QMainWindow):
         self.canvas_widget.setFixedWidth(int(self.canvas_table_width + 2*self.canvas_padding))
         self.canvas_widget.setFixedHeight(int(self.canvas_table_height + 2*self.canvas_padding))
         self.canvas_widget.paintEvent = self.draw_table_canvas
-
-        self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
+        self.canvas_widget.mousePressEvent = self.canvas_widget_mousedown
+        self.canvas_widget.mouseMoveEvent = self.canvas_widget_click
+        self.canvas_widget.mouseReleaseEvent = self.canvas_widget_mouseup
+        self.is_dragging_canvas = False
 
         # Link image button events to functions
         self.image_name.returnPressed.connect(self.load_button_clicked)
@@ -96,12 +98,13 @@ class Ui(QMainWindow):
         self.b_slider.valueChanged.connect(
             lambda value: self.update_shot(b=value/self.b_slider.maximum()*self.b_max))
         self.center_button.clicked.connect(lambda: self.update_shot(a=0, b=0))
-        self.is_dragging_spin = False
 
         # Link spin widget click
+        self.spin_canvas_widget.paintEvent = self.draw_spin_canvas
         self.spin_canvas_widget.mousePressEvent = self.spin_widget_mousedown
         self.spin_canvas_widget.mouseMoveEvent = self.spin_widget_click
         self.spin_canvas_widget.mouseReleaseEvent = self.spin_widget_mouseup
+        self.is_dragging_spin = False
 
         # Setup play function calls
         self.playing = False
@@ -371,6 +374,8 @@ class Ui(QMainWindow):
             self.shot.balls = balls
             self.update_shot()
 
+            self.update_time(set_time=0)
+
         except AssertionError as e:
             print(e)
 
@@ -545,6 +550,24 @@ class Ui(QMainWindow):
             b = -(event.y() - circle_center.y()) / circle_radius
             self.update_shot(a=a, b=b)
 
+    def canvas_widget_mousedown(self, event):
+        if not self.playing:
+            self.is_dragging_canvas = True
+            self.canvas_widget_click(event)
+    def canvas_widget_mouseup(self, event):
+        self.is_dragging_canvas = False
+    def canvas_widget_click(self, event):
+        if self.is_dragging_canvas:
+            real_cue_pos = self.shot.balls["cue"].history_cts.states[0].rvw[0][:2]
+            cue_ball_pos = self.transform_point(real_cue_pos)
+
+            dx = event.x() - cue_ball_pos[0]
+            dy = event.y() - cue_ball_pos[1]
+
+            phi = np.arctan2(-dx, -dy) * 180/np.pi + 180
+
+            self.update_shot(phi=phi)
+
     def update_shot(self, V0=None, phi=None, a=None, b=None, theta=None):
         # if not V0 is None:
         #     self.V0 = V0
@@ -600,7 +623,7 @@ class Ui(QMainWindow):
 
 
         self.recalculate_shot()
-        self.update_time()
+        self.update_time(set_time=0)
 
     def recalculate_shot(self):
         # Evolve the shot
