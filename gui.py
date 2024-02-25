@@ -202,6 +202,11 @@ class Ui(QMainWindow):
 
         self.balls_class_conversion = ['1', '10', '11', '12', '13', '14', '15', '2', '3', '4', '5', '6', '7', '8', '9', 'cue', 'rack', 'red', 'yellow']
 
+
+        # Initialise camera
+        self.cap = cv2.VideoCapture(0) # TODO add a dropdown or smth to choose the correct webcam
+        self.cap.read()
+
         # Set up from initial image
         self.load_button_clicked()
 
@@ -382,10 +387,9 @@ class Ui(QMainWindow):
 
     def load_webcam_clicked(self):
         # Save webcam image
-        cap = cv2.VideoCapture(1) # TODO add a dropdown or smth to choose the correct webcam
-        # time.sleep(2) # Tried to fix exposure but didn't help
-        ret, img = cap.read()
-        cap.release()
+        # cap = cv2.VideoCapture(0) # TODO add a dropdown or smth to choose the correct webcam
+        ret, img = self.cap.read()
+        # self.cap.release()
 
         if ret:
             # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
