@@ -58,4 +58,4 @@ def checkerboard_calibrate(image_folder, display_images=False):
 
 
 if __name__ == "__main__":
-    mtx, dist = checkerboard_calibrate('./calibration/logitech_gui', True)
+    mtx, dist = checkerboard_calibrate('./calibration/laptop', True)
