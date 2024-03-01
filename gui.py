@@ -290,7 +290,11 @@ class Ui(QMainWindow):
         
 
         # Evaluate NNs
-        pockets_target = self.get_pockets(image_file)
+        if self.update_pockets_checkbox.isChecked():
+            pockets_target = self.get_pockets(image_file)
+        else:
+            pockets_target = self.old_pockets_target
+
         balls_target = self.get_balls(image_file)
 
         
@@ -385,6 +389,8 @@ class Ui(QMainWindow):
             self.update_shot()
 
             self.update_time(set_time=0)
+
+            self.old_pockets_target = pockets_target
 
         except AssertionError as e:
             print(e)
