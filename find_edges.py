@@ -543,14 +543,14 @@ def get_perspective(img_corners, table_dims, K):
     image_pts = np.array(img_corners, dtype=np.float32)
 
     retval, rvec, tvec = cv2.solvePnP(world_pts, image_pts, K, None)
-    rotation_matrix, _ = cv2.Rodrigues(rvec)
+    rmat, _ = cv2.Rodrigues(rvec)
 
     # tvec /= tvec[2]
 
-    projection = np.column_stack((rotation_matrix, tvec))
+    projection = np.column_stack((rmat, tvec))
 
 
-    # print("retval", retval, "rvec", rvec, "tvec", tvec, "rmat", rotation_matrix, "projection", projection, sep="\n")
+    # print("retval", retval, "rvec", rvec, "tvec", tvec, "rmat", rmat, "projection", projection, sep="\n")
 
     return rvec, tvec
 
