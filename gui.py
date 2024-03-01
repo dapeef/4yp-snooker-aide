@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon
 import sys
 import os
-import json
+# import json
 import pooltool as pt
 import math
 import pooltool_test as pt_utils
@@ -19,6 +19,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 import matplotlib.colors as mcolors
 from PyQt5.QtWidgets import QVBoxLayout
 import cv2
+# import pygame.camera
 
 
 class Ui(QMainWindow):
@@ -207,8 +208,17 @@ class Ui(QMainWindow):
 
 
         # Initialise camera
-        self.cap = cv2.VideoCapture(0) # TODO add a dropdown or smth to choose the correct webcam
+        print("initialising camera (may take a while)")
+        self.cap = cv2.VideoCapture(1) # TODO add a dropdown or smth to choose the correct webcam
+        print("camera intialised")
         self.cap.read()
+
+        # # Pygame camera init
+        # print("initialising camera")
+        # pygame.camera.init()
+        # self.cam_list = pygame.camera.list_cameras()
+        # print(self.cam_list)
+        # print("camera intialised")
 
         # Set up from initial image
         self.load_button_clicked()
