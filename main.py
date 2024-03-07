@@ -7,6 +7,7 @@ import balls_eval_single
 import balls_eval_multiple
 import cv2
 import json
+import os
 
 
 
@@ -15,6 +16,8 @@ image_file = "./images/terrace.jpg"
 # image_file = './data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ball/real_test/images/snooker2.jpg'
 # image_file = "./images/snooker2.jpg"
 # image_file = "./images/home_table3.jpg"
+image_file = "./images/terrace_webcam.jpg"
+image_file = "./images/terrace_laptop.jpg"
 
 
 
@@ -47,7 +50,7 @@ pockets = pockets_eval.get_pockets(image_file)
 
 pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
 # plt.show()
-dilation_dist = max_dist / 15
+# dilation_dist = max_dist / 15
 # pocket_lines = find_edges.get_edges(image_file, pocket_lines, pocket_mask, dilation_dist) # V janky
 
 
@@ -61,7 +64,7 @@ dilation_dist = max_dist / 15
 #     [[ 1.31600000e+03,  0]],
 #     [[ 5.68000000e+02,  0]]]) # lines which don't have 2 pairs parallel
 corners = find_edges.get_rect_corners(pocket_lines)
-# print(corners)
+print(f"corners: {corners}")
 
 
 
@@ -76,22 +79,29 @@ corners = find_edges.get_rect_corners(pocket_lines)
 # Ball diameter = 52.5mm
 
 # Intrinsic camera matrix
-with open("camera_matrix.json", 'r') as file:
-    camera_properties = json.load(file)
-print(camera_properties)
-fx, fy = camera_properties["focalLength"]
-x0 = image.shape[1] / 2
-y0 = image.shape[0] / 2
-x0, y0 = camera_properties["principalPoint"]
-K = np.array([[fx, 0 , x0],
-              [0 , fy, y0],
-              [0 , 0 , 1 ]])
+# with open("camera_matrix.json", 'r') as file:
+#     camera_properties = json.load(file)
+# print(camera_properties)
+# fx, fy = camera_properties["focalLength"]
+# x0 = image.shape[1] / 2
+# y0 = image.shape[0] / 2
+# x0, y0 = camera_properties["principalPoint"]
+# K = np.array([[fx, 0 , x0],
+#               [0 , fy, y0],
+#               [0 , 0 , 1 ]])
 
-print(K)
+# camera_name = "s10+_horizontal"
+# camera_name = "logitech_camera"
+camera_name = "laptop"
+
+mtx = np.load(os.path.join("./calibration", camera_name, "intrinsic_matrix.npy"))
+dist_coeffs = np.load(os.path.join("./calibration", camera_name, "distortion.npy"))
+
+print(f"K: {mtx}")
 
 homography = find_edges.get_homography(corners, [1854, 3683])
 # print(homography)
-rvec, tvec = find_edges.get_perspective(corners, [1854, 3683], K)
+rvec, tvec, projection = find_edges.get_perspective(corners, [1854, 3683], mtx)
 # print(projection)
 
 # temp = np.dot(projection, np.array([0, 0, 0, 1]))
@@ -100,9 +110,15 @@ rvec, tvec = find_edges.get_perspective(corners, [1854, 3683], K)
 # print(temp/temp[2])
 
 points = np.array([[0, 0, 0], [1854, 3683, 0], [927, 1841.5, 0]], dtype=np.float32)
-img_points = cv2.projectPoints(points, rvec, tvec, K, None)[0]
-print(img_points)
+img_points, _ = cv2.projectPoints(points, rvec, tvec, mtx, dist_coeffs)
+print(f"img_points: {img_points}")
 find_edges.plotPoints(img_points)
+
+img_points = corners
+world_points = find_edges.get_world_pos_from_perspective(img_points, mtx, rvec, tvec, 0)
+
+print(f"world_points (should correspond to the corners of the table, with dims {[1854, 3683]}):\n{world_points}")
+
 
 
 balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
@@ -128,8 +144,10 @@ for ball in img_balls:
     real_balls.append(find_edges.get_world_point(ball, homography))
 
 
+real_balls_projection = find_edges.get_world_pos_from_perspective(img_balls, mtx, rvec, tvec, -(44.45 - 52.5/2))
 
-find_edges.display_table(real_balls)
+find_edges.display_table(real_balls, title="Homography balls")
+find_edges.display_table(real_balls_projection, title="Projection balls")
 
 
 

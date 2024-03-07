@@ -552,7 +552,37 @@ def get_perspective(img_corners, table_dims, K):
 
     # print("retval", retval, "rvec", rvec, "tvec", tvec, "rmat", rmat, "projection", projection, sep="\n")
 
-    return rvec, tvec
+    return rvec, tvec, projection
+
+def get_world_pos_from_perspective(img_points, mtx, rvec, tvec, z_plane):
+    K_inv = np.linalg.inv(mtx)
+    rmat, _ = cv2.Rodrigues(rvec)
+    tvec = np.transpose(tvec)[0]
+
+    world_points = []
+    
+    for img_point in img_points:
+        img_point_homogeneous = np.transpose(np.append(img_point, [1]))
+
+        # print("tvec", tvec)
+        # print("img point homogeneous", img_point_homogeneous)
+
+        leftSideMat = np.linalg.inv(rmat).dot(np.linalg.inv(mtx)).dot(img_point_homogeneous)
+        rightSideMat = np.linalg.inv(rmat).dot(tvec)
+
+        # print("MATRICES", leftSideMat, rightSideMat)
+
+        scale_factor = (z_plane + rightSideMat[2]) / leftSideMat[2]
+
+        # print("Scale factor: ", scale_factor)
+
+        world_point = leftSideMat * scale_factor - rightSideMat
+
+        # print("world point:", world_point)
+
+        world_points.append(world_point[:2])
+    
+    return np.array(world_points)
 
 def get_balls_homography(cushion_homography, height_difference):
     num, Rs, Ts, Ns = cv2.decomposeHomographyMat(cushion_homography, np.identity(3))
@@ -645,7 +675,7 @@ def find_balls(image_file):
 
     return np.array(centers)
 
-def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_height=1000):
+def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_height=1000, title="Estimated ball positions"):
     # initialize our canvas as a 300x300 pixel image with 3 channels
     # (Red, Green, and Blue) with a black background
 
@@ -677,6 +707,6 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_
     for ball in ball_centers:
         cv2.circle(canvas, (trans(ball[0]), window_height-trans(ball[1])), trans(ball_size/2), blue, -1)
 
-    plt.figure("Estimated ball positions")
-    plt.title("Estimated ball positions")
+    plt.figure(title)
+    plt.title(title)
     plt.imshow(canvas)
