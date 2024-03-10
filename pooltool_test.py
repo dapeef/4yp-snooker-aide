@@ -10,7 +10,7 @@ def english_8_ball_table_specs() -> pt.PocketTableSpecs:
         l = 1.594,
         w = 0.821,
         cushion_width = 0.041,
-        cushion_height = 0.031, # 37 to very top
+        cushion_height = 0.031, # 0.037 to very top
         corner_pocket_width = 0.1, # 10cm
         corner_pocket_angle = 23 / 2, # need protractor
         corner_pocket_depth = 0.055,

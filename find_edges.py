@@ -535,14 +535,14 @@ def get_homography(img_corners, table_dims):
 
     return homography
 
-def get_perspective(img_corners, table_dims, K):
+def get_perspective(img_corners, table_dims, mtx, dist_coeffs):
     width = table_dims[0]
     height = table_dims[1]
 
     world_pts = np.array([[0, height, 0], [width, height, 0], [width, 0, 0], [0, 0, 0]], dtype=np.float32)
     image_pts = np.array(img_corners, dtype=np.float32)
 
-    retval, rvec, tvec = cv2.solvePnP(world_pts, image_pts, K, None)
+    retval, rvec, tvec = cv2.solvePnP(world_pts, image_pts, mtx, dist_coeffs)
     rmat, _ = cv2.Rodrigues(rvec)
 
     # tvec /= tvec[2]
@@ -675,7 +675,7 @@ def find_balls(image_file):
 
     return np.array(centers)
 
-def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_height=1000, title="Estimated ball positions"):
+def display_table(ball_centers, table_dims=[1854, 3683], ball_diameter=52.5, window_height=1000, title="Estimated ball positions"):
     # initialize our canvas as a 300x300 pixel image with 3 channels
     # (Red, Green, and Blue) with a black background
 
@@ -705,7 +705,7 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_size=52.5, window_
 
     # Add balls
     for ball in ball_centers:
-        cv2.circle(canvas, (trans(ball[0]), window_height-trans(ball[1])), trans(ball_size/2), blue, -1)
+        cv2.circle(canvas, (trans(ball[0]), window_height-trans(ball[1])), trans(ball_diameter/2), blue, -1)
 
     plt.figure(title)
     plt.title(title)
