@@ -17,7 +17,7 @@ image_file = './data/Pockets, cushions, table - 2688 - B&W, rotated, mostly 9 ba
 image_file = "./images/snooker2.jpg"
 image_file = "./images/home_table3.jpg"
 image_file = "./images/terrace_webcam.jpg"
-image_file = "./images/terrace_laptop.jpg"
+# image_file = "./images/terrace_laptop.jpg"
 image_file = "./images/terrace_phone.jpg"
 
 
@@ -97,9 +97,9 @@ print(f"corners: {corners}")
 table_size = np.array([1.854, 3.683]) # Snooker
 table_size = np.array([0.903, 1.676]) # English 8 ball
 
-# camera_name = "s10+_horizontal"
 # camera_name = "logitech_camera"
-camera_name = "laptop"
+# camera_name = "laptop"
+camera_name = "s10+_horizontal"
 
 mtx = np.load(os.path.join("./calibration", camera_name, "intrinsic_matrix.npy"))
 dist_coeffs = np.load(os.path.join("./calibration", camera_name, "distortion.npy"))

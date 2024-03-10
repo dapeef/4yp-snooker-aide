@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication
+from PyQt5.QtWidgets import QMainWindow, QApplication, QListView
 from PyQt5 import uic
-from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
+from PyQt5.QtCore import Qt, QRect, QPoint, QTimer, QStringListModel
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon
 import sys
 import os
@@ -67,6 +67,15 @@ class Ui(QMainWindow):
         # Temp file for the webcam image
         self.temp_webcam_file_name = "./temp/webcam_image.jpg"
 
+        # Initialise settings
+        self.calibration_directory = "./calibration"
+        entries = os.listdir(self.calibration_directory)
+        calibration_options = [entry for entry in entries if os.path.isdir(os.path.join(self.calibration_directory, entry))]
+        self.image_cal_drop_down.addItems(calibration_options)
+        self.image_cal_drop_down.setCurrentText("s10+_horizontal")
+        self.webcam_cal_drop_down.addItems(calibration_options)
+        self.webcam_cal_drop_down.setCurrentText("logitech_gui")
+
         # Link time button events to functions
         self.time_slider.valueChanged.connect(
             lambda value: self.update_time(set_time=value/self.time_slider.maximum(), slider_set=True))
@@ -113,6 +122,11 @@ class Ui(QMainWindow):
         self.timer.timeout.connect(self.play_update)
         self.timer.start(16) # milliseconds
 
+        # Initialise info display output
+        self.string_list = []
+        self.string_model = QStringListModel()
+        self.string_model.setStringList(self.string_list)
+        self.info_listview.setModel(self.string_model)
 
         # Set some colour values
         self.color_table = QColor("#1ea625")
@@ -182,6 +196,7 @@ class Ui(QMainWindow):
         # Calculate top and cushion thickness
         self.top_thickness = self.canvas_widget.height()
         self.cushion_thickness = 0
+        self.cushion_height = 0.037 # mm - height from playing surface to top of cushion
 
         for line_id, line_info in self.shot.table.cushion_segments.linear.items():
             # Scale the points to fit within the widget dimensions
@@ -208,12 +223,11 @@ class Ui(QMainWindow):
 
         # Initialise camera
         self.get_available_cameras()
-        self.current_camera_index = min(0, len(self.available_cameras))
+        self.current_camera_index = min(1, len(self.available_cameras))
         # self.webcam_dro_down.clear()
         self.webcam_drop_down.addItems(self.available_cameras)
         self.webcam_drop_down.setCurrentIndex(self.current_camera_index)
         self.webcam_drop_down.currentIndexChanged.connect(self.change_camera)
-
         self.change_camera(self.current_camera_index)
 
         # Set up from initial image
@@ -237,7 +251,7 @@ class Ui(QMainWindow):
 
         return target
 
-    def process_image(self, image_file):
+    def process_image(self, image_file, calibration_folder):
         def circle_line_overlap_vector(circle_center, radius, p1, p2):
             """Calculate the vector to move the circle to resolve overlap with the line segment."""
             p1 = p1[:2]
@@ -282,7 +296,6 @@ class Ui(QMainWindow):
             else:
                 return c2_c1/dist * (r1 + r2 - dist)
 
-        
 
         # Evaluate NNs
         if self.update_pockets_checkbox.isChecked():
@@ -308,7 +321,12 @@ class Ui(QMainWindow):
 
             # Get homography between pixelspace and tablespace
             table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
-            homography = find_edges.get_homography(corners, table_size)
+
+            mtx = np.load(os.path.join(self.calibration_directory, calibration_folder, "intrinsic_matrix.npy"))
+            dist_coeffs = np.load(os.path.join(self.calibration_directory, calibration_folder, "distortion.npy"))
+            rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx, dist_coeffs)
+
+            # homography = find_edges.get_homography(corners, table_size)
 
 
             # Process all balls
@@ -324,7 +342,8 @@ class Ui(QMainWindow):
                 label = balls_target["labels"][i]
                 ball_type = self.balls_class_conversion[label]
                 img_center = balls_target["centers"][i]
-                real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
+                # real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
+                real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(self.cushion_height - ball_radius))[0]
 
                 move_count = 1
                 total_move_count = 0
@@ -356,7 +375,7 @@ class Ui(QMainWindow):
                     total_move_count += move_count
 
                     if total_move_count >= 1000:
-                        print(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
+                        self.display_info(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
                         break
 
                 if real_center[0] >= 0 and \
@@ -389,18 +408,15 @@ class Ui(QMainWindow):
 
         except AssertionError as e:
             print(e)
+            self.display_info(f"Failed to process pockets: {e}")
 
     def load_button_clicked(self):
-        # # Update button text
-        # self.load_image_button.setText("Loading...")
-
         # Load image
         image_file = os.path.join("./images", self.image_name.text())
-        self.process_image(image_file)
-
-        # # Update button text
-        # self.load_image_button.setText("Load")
+        self.display_info(f"Loading image from image: {image_file}")
+        self.process_image(image_file, self.image_cal_drop_down.currentText())
     def load_webcam_clicked(self):
+        self.display_info(f"Loading image from webcam: {self.available_cameras[self.current_camera_index]}")
         # Save webcam image
         # Read twice to make sure the camera is up to date
         ret, img = self.cap.read()
@@ -410,7 +426,7 @@ class Ui(QMainWindow):
             # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             cv2.imwrite(self.temp_webcam_file_name, img)
 
-        self.process_image(self.temp_webcam_file_name)
+        self.process_image(self.temp_webcam_file_name, self.webcam_cal_drop_down.currentText())
 
     def get_available_cameras(self):
         self.available_cameras = FilterGraph().get_input_devices()
@@ -422,9 +438,9 @@ class Ui(QMainWindow):
         except AttributeError:
             pass # First time running
 
-        print(f"Initialising camera {self.available_cameras[self.current_camera_index]} at index {self.current_camera_index}. (may take a while)")
+        self.display_info(f"Initialising camera {self.available_cameras[self.current_camera_index]} at index {self.current_camera_index}. This may take a while")
         self.cap = cv2.VideoCapture(self.current_camera_index)
-        print("Camera intialised")
+        self.display_info(f"Camera intialised: {self.available_cameras[self.current_camera_index]}")
         self.cap.read()
 
 
@@ -520,6 +536,15 @@ class Ui(QMainWindow):
         if self.playing:
             self.time = (time.time() - self.play_start_time) % self.shot.t
             self.update_time()
+
+
+    def display_info(self, string):
+        print(string)
+        
+        self.string_list.append(string)
+        self.string_model.setStringList(self.string_list)
+
+        self.info_listview.scrollToBottom()
 
 
     def disable_enable_all(self, enabled):
