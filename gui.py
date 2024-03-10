@@ -4,7 +4,6 @@ from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon
 import sys
 import os
-# import json
 import pooltool as pt
 import math
 import pooltool_test as pt_utils
@@ -19,7 +18,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 import matplotlib.colors as mcolors
 from PyQt5.QtWidgets import QVBoxLayout
 import cv2
-# import pygame.camera
+from pygrabber.dshow_graph import FilterGraph
 
 
 class Ui(QMainWindow):
@@ -208,17 +207,14 @@ class Ui(QMainWindow):
 
 
         # Initialise camera
-        print("initialising camera (may take a while)")
-        self.cap = cv2.VideoCapture(1) # TODO add a dropdown or smth to choose the correct webcam
-        print("camera intialised")
-        self.cap.read()
+        self.get_available_cameras()
+        self.current_camera_index = min(0, len(self.available_cameras))
+        # self.webcam_dro_down.clear()
+        self.webcam_drop_down.addItems(self.available_cameras)
+        self.webcam_drop_down.setCurrentIndex(self.current_camera_index)
+        self.webcam_drop_down.currentIndexChanged.connect(self.change_camera)
 
-        # # Pygame camera init
-        # print("initialising camera")
-        # pygame.camera.init()
-        # self.cam_list = pygame.camera.list_cameras()
-        # print(self.cam_list)
-        # print("camera intialised")
+        self.change_camera(self.current_camera_index)
 
         # Set up from initial image
         self.load_button_clicked()
@@ -232,7 +228,6 @@ class Ui(QMainWindow):
         target = nn_utils.get_bbox_centers(target)
 
         return target
-    
     def get_balls(self, image_file):
         self.balls_evaluator.create_dataset(image_file)
         target = self.balls_evaluator.get_boxes(0)
@@ -405,18 +400,32 @@ class Ui(QMainWindow):
 
         # # Update button text
         # self.load_image_button.setText("Load")
-
     def load_webcam_clicked(self):
         # Save webcam image
-        # cap = cv2.VideoCapture(0) # TODO add a dropdown or smth to choose the correct webcam
+        # Read twice to make sure the camera is up to date
         ret, img = self.cap.read()
-        # self.cap.release()
+        ret, img = self.cap.read()
 
         if ret:
             # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             cv2.imwrite(self.temp_webcam_file_name, img)
 
         self.process_image(self.temp_webcam_file_name)
+
+    def get_available_cameras(self):
+        self.available_cameras = FilterGraph().get_input_devices()
+    def change_camera(self, new_camera_index):
+        self.current_camera_index = new_camera_index
+
+        try:
+            self.cap.release()
+        except AttributeError:
+            pass # First time running
+
+        print(f"Initialising camera {self.available_cameras[self.current_camera_index]} at index {self.current_camera_index}. (may take a while)")
+        self.cap = cv2.VideoCapture(self.current_camera_index)
+        print("Camera intialised")
+        self.cap.read()
 
 
     def plot_img_bbox(self, widget, img, target, title=""):
@@ -492,7 +501,6 @@ class Ui(QMainWindow):
         self.time_label.setText("Shot time: {:.2f}s".format(self.time))
 
         self.canvas_widget.update()
-
     def toggle_play_animation(self, event):
         if not self.playing:
             self.playing = True
@@ -508,7 +516,6 @@ class Ui(QMainWindow):
             self.disable_enable_all(True)
             self.play_button.setEnabled(True)
             self.play_button.setText("Play")
-    
     def play_update(self):
         if self.playing:
             self.time = (time.time() - self.play_start_time) % self.shot.t
