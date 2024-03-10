@@ -342,8 +342,10 @@ class Ui(QMainWindow):
                 label = balls_target["labels"][i]
                 ball_type = self.balls_class_conversion[label]
                 img_center = balls_target["centers"][i]
-                # real_center = find_edges.get_world_point(img_center, homography) - np.array([self.cushion_thickness_real, self.cushion_thickness_real])
+                # real_center = find_edges.get_world_point(img_center, homography)
                 real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(self.cushion_height - ball_radius))[0]
+
+                real_center -= np.array([1, 1]) * self.cushion_thickness_real
 
                 move_count = 1
                 total_move_count = 0
@@ -372,6 +374,13 @@ class Ui(QMainWindow):
                             move_count += 1
                         real_center += vec
 
+                    # Jiggle position to ensure balls don't fall straight into pockets
+                    for pocket_id, pocket_info in self.shot.table.pockets.items():
+                        vec = circle_circle_overlap_vector(real_center, ball_radius, pocket_info.center[:2], pocket_info.radius-ball_radius+self.simulation_nudge)
+                        if not (vec==np.array([0,0])).all():
+                            move_count += 1
+                        real_center += vec
+                    
                     total_move_count += move_count
 
                     if total_move_count >= 1000:

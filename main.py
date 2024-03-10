@@ -144,6 +144,7 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 # img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
 img_balls = balls_eval_multiple.get_balls(image_file)["centers"]
 
+print(f"ball positions: {img_balls}")
 
 
 # img_balls = [[500, 325],
@@ -156,6 +157,7 @@ for ball in img_balls:
 
 
 real_balls_projection = find_edges.get_world_pos_from_perspective(img_balls, mtx, rvec, tvec, -(0.037 - 0.0508/2))
+print(f"Real ball locations: {real_balls_projection}")
 
 find_edges.display_table(real_balls, table_dims=table_size, ball_diameter=0.0508, title="Homography balls")
 find_edges.display_table(real_balls_projection, table_dims=table_size, ball_diameter=0.0508, title="Projection balls")

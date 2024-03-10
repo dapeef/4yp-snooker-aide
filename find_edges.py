@@ -687,8 +687,8 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_diameter=52.5, win
     blue = (0, 0, 255)
 
     # Create canvas
-    canvas = np.zeros((trans(table_dims[1]), trans(table_dims[0]), 3), dtype="uint8")
-    canvas = cv2.imread("images\\blank_snooker_table.png")
+    canvas = np.ones((trans(table_dims[1]), trans(table_dims[0]), 3), dtype="uint8")
+    # canvas = cv2.imread("images\\blank_snooker_table.png")
 
     # Add cushions (2" = 50.8mm away from edges)
     cushion_t = 50.8
