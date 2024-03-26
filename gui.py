@@ -321,6 +321,7 @@ class Ui(QMainWindow):
 
             # Get homography between pixelspace and tablespace
             table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
+            # print(f"Table size: {table_size}")
 
             mtx = np.load(os.path.join(self.calibration_directory, calibration_folder, "intrinsic_matrix.npy"))
             dist_coeffs = np.load(os.path.join(self.calibration_directory, calibration_folder, "distortion.npy"))

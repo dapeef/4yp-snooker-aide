@@ -636,8 +636,13 @@ class EvaluateNet:
 
         out_str = out_str[:-1]
         
-        image_file = os.path.join(dataset_file, "images", self.dataset.get_image_name(image_index))
-        label_file = os.path.join(dataset_file, "labels", self.dataset.get_label_name(image_index))
+        image_folder = os.path.join(dataset_file, "images")
+        image_file = os.path.join(image_folder, self.dataset.get_image_name(image_index))
+        label_folder = os.path.join(dataset_file, "labels")
+        label_file = os.path.join(label_folder, self.dataset.get_label_name(image_index))
+
+        if not os.path.exists(image_folder): os.mkdir(image_folder)
+        if not os.path.exists(label_folder): os.mkdir(label_folder)
 
         cv2.imwrite(image_file, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         with open(label_file, 'w') as file:
