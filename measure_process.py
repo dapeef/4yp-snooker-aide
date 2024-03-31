@@ -219,6 +219,9 @@ class Test:
         self.validation_folder = "./validation/supervised"
         self.folder = os.path.join(self.validation_folder, f"set-{self.set}", self.device)
 
+        if not os.path.exists(self.folder):
+            raise Exception(f"Validation set {set} with device '{device}' doesn't exist")
+
     def test_image_detection(self, detection_method, show=False):
         # detection_method values can be "hough", "nn"
 
@@ -301,9 +304,28 @@ class Test:
         if show:
             plt.show()
 
-if __name__ == "__main__":
-    test = Test(1, "s10+_vertical")
+def test_all():
+    calibration_directory = "./calibration"
+    entries = os.listdir(calibration_directory)
+    device_names = [entry for entry in entries if os.path.isdir(os.path.join(calibration_directory, entry))]
 
-    test.test_image_detection(detection_method="hough", show=False)
+    for set_num in range(1, 6):
+        for device_name in device_names:
+            for detection_method in ["hough", "nn"]:
+                print(f"Trying set {set_num} with device '{device_name}' and detection method '{detection_method}'")
+
+                try:
+                    test = Test(set_num, device_name)
+                except Exception as e:
+                    print(e)
+                    continue
+
+                test.test_image_detection(detection_method)
+
+if __name__ == "__main__":
+    # test = Test(2, "s10+_horizontal")
+    # test.test_image_detection(detection_method="hough", show=False)
+
+    test_all()
 
     # plt.show()

@@ -361,7 +361,7 @@ def plot_result_img_bbox(img, target, title=""):
     # Bounding boxes are defined as follows: x-min y-min x-max y-max
 
     # plt.figure("Neural net detection")
-    plt.figure(title)
+    # plt.figure(title)
     plt.title(title)
     a = plt.gca()
     a.imshow(img)

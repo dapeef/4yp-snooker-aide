@@ -220,7 +220,7 @@ def get_sam_lines(mask_file=""):
     # x = getIntersectionPolar(lines[0], lines[1])
 
 
-    plt.figure("SAM mask")
+    # plt.figure("SAM mask")
     plt.title("SAM mask")
     plt.imshow(mask)
     plotLinesPolar(lines, mask.shape)
@@ -228,7 +228,7 @@ def get_sam_lines(mask_file=""):
     # plt.plot(x[0], x[1], "b+")
 
 
-    plt.figure("Dilated SAM mask")
+    # plt.figure("Dilated SAM mask")
     plt.title("Dilated SAM mask")
     plt.imshow(dilated_mask)
     plotLinesPolar(lines, dilated_mask.shape)
@@ -251,6 +251,9 @@ def get_lines_from_pockets(image_file, pockets):
     
 
     # Make sure there are enough pockets detected
+    if len(pocket_points) != 6:
+        print(f"ERROR Not enough pockets detected; {len(pockets)} detected, 6 needed")
+        plt.show()
     assert len(pocket_points) == 6, f"Not enough pockets detected; {len(pockets)} detected, 6 needed"
     
 
@@ -304,6 +307,9 @@ def get_lines_from_pockets(image_file, pockets):
     
     max_dist = max(dists)
 
+    if len(corners) != 4:
+        print(f"ERROR Wrong number of corners detected; detected {len(corners)}, needed 4")
+        plt.show()
     assert len(corners) == 4, f"Wrong number of corners detected; detected {len(corners)}, needed 4"
 
     # Get lines which go through corners
@@ -333,7 +339,7 @@ def get_lines_from_pockets(image_file, pockets):
     image = cv2.imread(image_file)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    plt.figure("Lines from NN pockets")
+    # plt.figure("Lines from NN pockets")
     plt.title("Lines from NN pockets")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
@@ -359,7 +365,7 @@ def get_edges(image_file, informing_lines, mask, dilation_dist):
     image = cv2.imread(image_file)
 
     mask = dilate(mask, int(dilation_dist))
-    plt.figure("Dilated mask")
+    # plt.figure("Dilated mask")
     plt.title("Dilated mask")
     plt.imshow(mask)
     plotLinesPolar(informing_lines, mask.shape, "red")
@@ -379,7 +385,7 @@ def get_edges(image_file, informing_lines, mask, dilation_dist):
 
     lines = filter_lines_multiple(lines, informing_lines, dilation_dist*2, 3/360*np.pi)
 
-    plt.figure("Hough on original image, informed by informing lines")
+    # plt.figure("Hough on original image, informed by informing lines")
     plt.title("Hough on original image, informed by informing lines")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
@@ -660,7 +666,7 @@ def find_balls(image_file):
     )
 
     
-    plt.figure("Hough circle transform to find balls")
+    # plt.figure("Hough circle transform to find balls")
     plt.title("Hough circle transform to find balls")
     plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
 
@@ -716,6 +722,6 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_diameter=52.5, win
     for ball in ball_centers:
         cv2.circle(canvas, (trans(ball[0]), window_height-trans(ball[1])), trans(ball_diameter/2), blue, -1)
 
-    plt.figure(title)
+    # plt.figure(title)
     plt.title(title)
     plt.imshow(canvas)
