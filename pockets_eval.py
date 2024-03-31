@@ -1,5 +1,6 @@
 import cv2
 import nn_utils
+import matplotlib.pyplot as plt
 
 # for ignoring warnings
 import warnings

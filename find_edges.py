@@ -276,7 +276,7 @@ def get_lines_from_pockets(image_file, pockets):
 
                     # print(pocket_points[i], pocket_points[j], pocket_points[k+1],180- np.rad2deg(dtheta))
 
-                    dtheta_threshold = 7 # degrees
+                    dtheta_threshold = 10 # degrees
                     if dtheta > np.deg2rad(180-dtheta_threshold):
                         # These three points are nearly colinear, so either vec or vecs[k] is the vector to the middle
                         side_pocket_idx.append(i)
@@ -345,6 +345,15 @@ def get_lines_from_pockets(image_file, pockets):
 
     return lines, mask, max_dist
 
+def save_masked_image(image_file, mask):
+    # Get lines for original image
+    image = cv2.imread(image_file)
+
+    # Mask image with dilated SAM mask
+    image = cv2.bitwise_and(image, image, mask=mask)
+    masked_file_name = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
+    cv2.imwrite(masked_file_name, image)
+
 def get_edges(image_file, informing_lines, mask, dilation_dist):
     # Get lines for original image
     image = cv2.imread(image_file)
@@ -368,7 +377,7 @@ def get_edges(image_file, informing_lines, mask, dilation_dist):
 
     # plt.show()
 
-    lines = filter_lines_multiple(lines, informing_lines, dilation_dist-1, 3/360*np.pi)
+    lines = filter_lines_multiple(lines, informing_lines, dilation_dist*2, 3/360*np.pi)
 
     plt.figure("Hough on original image, informed by informing lines")
     plt.title("Hough on original image, informed by informing lines")
