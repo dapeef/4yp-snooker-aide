@@ -1,5 +1,10 @@
 import numpy as np
 import os
+import pockets_eval
+import balls_eval_multiple
+import find_edges
+import cv2
+import matplotlib.pyplot as plt
 
 
 
@@ -27,6 +32,25 @@ def load_points_from_file(file_path):
             if len(parts) == 3:
                 color, x, y = parts
                 points.append(np.array([float(x), float(y)]))
+    return np.array(points)
+
+def load_points_from_training_file(file_path, image_file):
+    image_res = cv2.imread(image_file).shape[:2]
+
+    points = []
+
+    for line in open(file_path, "r").read().split("\n"):
+        line_values = [float(x) for x in line.split(" ")][1:]
+
+        line_values[0] *= image_res[1]
+        line_values[1] *= image_res[0]
+        line_values[2] *= image_res[1]
+        line_values[3] *= image_res[0]
+
+        point = np.array(line_values[:2])
+        # point = np.array([line_values[1], line_values[0]])
+        points.append(point)
+
     return np.array(points)
 
 def rotate_points(file_path, points):
@@ -58,11 +82,67 @@ def rotate_points(file_path, points):
 
     return np.array(new_points)
 
-def run_test(set, device):
-    # set = [1, 2, 3, 4, 5]
-    # device = ["laptop_camera", "s10+_vertical", "s10+_horizontal", "logitech_camera"]
 
-    pass
+
+class Test:
+    def __init__(self, set, device) -> None:
+        self.set = set
+        self.device = device
+        self.validation_folder = "./validation/supervised"
+        self.folder = os.path.join(self.validation_folder, f"set-{self.set}", self.device)
+
+    def test_image_detection(self, detection_method):
+        # detection_method values can be "hough", "nn"
+
+        images_folder = os.path.join(self.folder, "images")
+        labels_folder = os.path.join(self.folder, "labels")
+
+        for file in os.listdir(images_folder):
+            image_file = os.path.join(images_folder, file)
+            label_file = os.path.join(labels_folder, f"{os.path.splitext(file)[0]}.txt")
+
+            if detection_method == "hough":
+                # Get masked image to reduce noise
+                pockets = pockets_eval.get_pockets(image_file)
+                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
+                find_edges.get_edges(image_file, pocket_lines, pocket_mask, 5)
+                masked_image_file = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
+
+                # Evaluate ball positions using hough
+                detected_points = find_edges.find_balls(masked_image_file)
+                print(f"ball positions: {detected_points}")
+
+                # Get expected ball positions
+                expected_points = load_points_from_training_file(label_file, image_file)
+                print(f"expected ball positions: {expected_points}")
+
+                self.draw(image_file, detected_points, expected_points)
+
+            elif detection_method == "nn":
+                pass
+
+    def test_projection(self):
+        expected_output_file = os.path.join(self.validation_folder, f"set-{self.set}", "real-positions.txt")
+
+    def draw(self, image_file, detected_points, expected_points):
+        img = cv2.imread(image_file)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        plt.figure()
+        plt.imshow(img)
+
+        for point in detected_points:
+            # cv2.drawMarker(img, point, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
+            plt.plot(*point, marker="x", markersize=10, color="b")
+        for point in expected_points:
+            # cv2.drawMarker(img, point, (0, 255, 0), cv2.MARKER_CROSS, 20, 2)
+            plt.plot(*point, marker="x", markersize=10, color="g")
+
+        plt.show()
 
 if __name__ == "__main__":
-    points = load_points_from_file()
+    test = Test(1, "laptop_camera")
+
+    test.test_image_detection(detection_method="hough")
+
+    plt.show()
