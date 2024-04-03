@@ -362,6 +362,7 @@ def plot_result_img_bbox(img, target, title=""):
 
     # plt.figure("Neural net detection")
     # plt.figure(title)
+    plt.figure()
     plt.title(title)
     a = plt.gca()
     a.imshow(img)

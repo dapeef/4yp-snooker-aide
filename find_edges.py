@@ -221,6 +221,7 @@ def get_sam_lines(mask_file=""):
 
 
     # plt.figure("SAM mask")
+    plt.figure()
     plt.title("SAM mask")
     plt.imshow(mask)
     plotLinesPolar(lines, mask.shape)
@@ -229,6 +230,7 @@ def get_sam_lines(mask_file=""):
 
 
     # plt.figure("Dilated SAM mask")
+    plt.figure()
     plt.title("Dilated SAM mask")
     plt.imshow(dilated_mask)
     plotLinesPolar(lines, dilated_mask.shape)
@@ -340,6 +342,7 @@ def get_lines_from_pockets(image_file, pockets):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     # plt.figure("Lines from NN pockets")
+    plt.figure()
     plt.title("Lines from NN pockets")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
@@ -366,6 +369,7 @@ def get_edges(image_file, informing_lines, mask, dilation_dist):
 
     mask = dilate(mask, int(dilation_dist))
     # plt.figure("Dilated mask")
+    plt.figure()
     plt.title("Dilated mask")
     plt.imshow(mask)
     plotLinesPolar(informing_lines, mask.shape, "red")
@@ -386,6 +390,7 @@ def get_edges(image_file, informing_lines, mask, dilation_dist):
     lines = filter_lines_multiple(lines, informing_lines, dilation_dist*2, 3/360*np.pi)
 
     # plt.figure("Hough on original image, informed by informing lines")
+    plt.figure()
     plt.title("Hough on original image, informed by informing lines")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
@@ -667,6 +672,7 @@ def find_balls(image_file):
 
     
     # plt.figure("Hough circle transform to find balls")
+    plt.figure()
     plt.title("Hough circle transform to find balls")
     plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
 

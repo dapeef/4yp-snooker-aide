@@ -12,14 +12,13 @@ import cProfile
 def evaluate(image_file):
     start_time = time.time()
     evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_multiple.pth", 20)
-    print(f"Model load time: {time.time() - start_time}")
+    # print(f"Model load time: {time.time() - start_time}")
     start_time = time.time()
     evaluator.create_dataset(image_file)
-    print(f"Dataset creation time: {time.time() - start_time}")
+    # print(f"Dataset creation time: {time.time() - start_time}")
     start_time = time.time()
     target = evaluator.get_boxes(0)
-    print(f"Model eval time: {time.time() - start_time}")
-    start_time = time.time()
+    # print(f"Model eval time: {time.time() - start_time}")
 
     return target
 

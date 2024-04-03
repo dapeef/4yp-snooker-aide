@@ -7,6 +7,7 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import json
+import nn_utils
 
 
 TABLE_SIZE = np.array([0.903, 1.676]) # English 8 ball
@@ -138,33 +139,36 @@ class TestResults:
 
         # Initialize a list to keep track of whether each expected point has been matched
         expected_matched = [False] * len(self.expected_points)
+        detected_matched = [False] * len(self.detected_points)
 
         for i, expected_point in enumerate(self.expected_points):
             found_match = False
 
-            for detected_point in self.detected_points:
+            min_distance = np.inf
+
+            for j, detected_point in enumerate(self.detected_points):
                 # Calculate distance between detected point and expected point
                 distance = np.linalg.norm(detected_point - expected_point)
 
-                if distance <= self.match_distance:
-                    # If within match distance, mark as a true positive
-                    self.true_positives += 1
-                    found_match = True
-
-                    # Mark the expected point as matched
-                    expected_matched[i] = True
-
-                    # Add distance to error array
-                    error_distances.append(distance)
-
-                    break
+                if distance <= min_distance and not detected_matched[j]:
+                    min_distance = distance
+                    closest_point = j
             
-            if not found_match:
+            if min_distance <= self.match_distance:
+                # Match found
+                self.true_positives += 1
+                expected_matched[i] = True
+
+                detected_matched[closest_point] = True
+                
+                error_distances.append(min_distance)
+                
+            else:
                 # If no match found for the expected point, it's a false negative
                 self.false_negatives += 1
 
         # Count unmatched expected points as false negatives
-        self.false_positives = len(self.detected_points) - sum(expected_matched)
+        self.false_positives = len(self.detected_points) - self.true_positives # sum(expected_matched)
 
         # Calculate mean error
         self.mean_error = self.mean_of_list(error_distances)
@@ -234,44 +238,65 @@ class Test:
             image_file = os.path.join(images_folder, file)
             label_file = os.path.join(labels_folder, f"{os.path.splitext(file)[0]}.txt")
 
-            print(f"\nAnalysing image: {image_file}")
+            print(f"\nAnalysing image: {image_file} with detection method: {detection_method}")
+
+            
+            # Get masked image to reduce noise
+            pockets = pockets_eval.get_pockets(image_file)
+            pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
+            # find_edges.get_edges(image_file, pocket_lines, pocket_mask, 5)
+            find_edges.save_masked_image(image_file, pocket_mask)
+            masked_image_file = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
+
+            # Get pocket locations, and min_table_dim
+            pocket_locations = find_edges.get_rect_corners(pocket_lines)
+            min_table_dims = np.inf
+            for j, pocket1 in enumerate(pocket_locations):
+                for k, pocket2 in enumerate(pocket_locations):
+                    if j != k:
+                        distance = np.linalg.norm(pocket2 - pocket1)
+                        min_table_dims = min(min_table_dims, distance)
 
             if detection_method == "hough":
-                # Get masked image to reduce noise
-                pockets = pockets_eval.get_pockets(image_file)
-                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
-                # find_edges.get_edges(image_file, pocket_lines, pocket_mask, 5)
-                find_edges.save_masked_image(image_file, pocket_mask)
-                masked_image_file = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
-
-                # Get pocket locations, and min_table_dim
-                pocket_locations = find_edges.get_rect_corners(pocket_lines)
-                min_table_dims = np.inf
-                for j, pocket1 in enumerate(pocket_locations):
-                    for k, pocket2 in enumerate(pocket_locations):
-                        if j != k:
-                            distance = np.linalg.norm(pocket2 - pocket1)
-                            min_table_dims = min(min_table_dims, distance)
-
                 print(f"Min table dims: {min_table_dims}")
 
                 # Evaluate ball positions using hough
                 detected_points = find_edges.find_balls(masked_image_file)
                 # print(f"ball positions: {detected_points}")
 
-                # Get expected ball positions
-                expected_points = load_points_from_training_file(label_file, image_file)
-                # print(f"expected ball positions: {expected_points}")
-
-                results.append(TestResults())
-                results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims)
-                results[i].calculate_secondary_metrics()
-                results[i].print_metrics()
-
-                self.draw(image_file, detected_points, expected_points, min_table_dims/15, show=show)
-
             elif detection_method == "nn":
-                pass
+                print(f"Min table dims: {min_table_dims}")
+
+                # Get detected ball positions
+                target = balls_eval_multiple.evaluate(image_file)
+                target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
+                target = nn_utils.get_bbox_centers(target)
+
+                detected_points = target["centers"]
+                # print(f"ball positions: {detected_points}")
+
+            elif detection_method == "nn_masked":
+                print(f"Min table dims: {min_table_dims}")
+
+                # Get detected ball positions
+                target = balls_eval_multiple.evaluate(masked_image_file)
+                target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
+                target = nn_utils.get_bbox_centers(target)
+
+                detected_points = target["centers"]
+                # print(f"ball positions: {detected_points}")
+
+
+            # Get expected ball positions
+            expected_points = load_points_from_training_file(label_file, image_file)
+            # print(f"expected ball positions: {expected_points}")
+
+            results.append(TestResults())
+            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims)
+            results[i].calculate_secondary_metrics()
+            results[i].print_metrics()
+
+            self.draw(image_file, detected_points, expected_points, min_table_dims/15, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
@@ -311,7 +336,7 @@ def test_all():
 
     for set_num in range(1, 6):
         for device_name in device_names:
-            for detection_method in ["hough", "nn"]:
+            for detection_method in ["hough", "nn", "nn_masked"]:
                 print(f"Trying set {set_num} with device '{device_name}' and detection method '{detection_method}'")
 
                 try:
@@ -324,7 +349,7 @@ def test_all():
 
 if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
-    # test.test_image_detection(detection_method="hough", show=False)
+    # test.test_image_detection(detection_method="nn_masked", show=True)
 
     test_all()
 
