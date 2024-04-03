@@ -113,9 +113,24 @@ class TestResults:
             "f1_score": self.f1_score
         }
 
+    def unpickle_metrics(self, pickle):
+        self.true_positives = pickle["true_positives"]
+        self.false_positives = pickle["false_positives"]
+        self.true_negatives = pickle["true_negatives"]
+        self.false_negatives = pickle["false_negatives"]
+        self.mean_error = pickle["mean_error"]
+        self.mean_error_normalised = pickle["mean_error_normalised"]
+        self.precision = pickle["precision"]
+        self.recall = pickle["recall"]
+        self.f1_score = pickle["f1_score"]
+
     def save_to_file(self, file_name):
         with open(file_name, 'w') as json_file:
             json.dump(self.pickle_metrics(), json_file, indent=4)
+        
+    def load_from_file(self, file_name):
+        with open(file_name, 'r') as json_file:
+            return json.load(json_file)
 
     def mean_of_list(self, lst):
         if len(lst) == 0:
@@ -226,8 +241,8 @@ class Test:
         if not os.path.exists(self.folder):
             raise Exception(f"Validation set {set} with device '{device}' doesn't exist")
 
-    def test_image_detection(self, detection_method, show=False):
-        # detection_method values can be "hough", "nn"
+    def test_image_detection(self, method_name, show=False):
+        # method_name values can be "hough", "nn"
 
         images_folder = os.path.join(self.folder, "images")
         labels_folder = os.path.join(self.folder, "labels")
@@ -238,7 +253,7 @@ class Test:
             image_file = os.path.join(images_folder, file)
             label_file = os.path.join(labels_folder, f"{os.path.splitext(file)[0]}.txt")
 
-            print(f"\nAnalysing image: {image_file} with detection method: {detection_method}")
+            print(f"\nAnalysing image: {image_file} with detection method: {method_name}")
 
             
             # Get masked image to reduce noise
@@ -257,14 +272,14 @@ class Test:
                         distance = np.linalg.norm(pocket2 - pocket1)
                         min_table_dims = min(min_table_dims, distance)
 
-            if detection_method == "hough":
+            if method_name == "hough":
                 print(f"Min table dims: {min_table_dims}")
 
                 # Evaluate ball positions using hough
                 detected_points = find_edges.find_balls(masked_image_file)
                 # print(f"ball positions: {detected_points}")
 
-            elif detection_method == "nn":
+            elif method_name == "nn":
                 print(f"Min table dims: {min_table_dims}")
 
                 # Get detected ball positions
@@ -275,7 +290,7 @@ class Test:
                 detected_points = target["centers"]
                 # print(f"ball positions: {detected_points}")
 
-            elif detection_method == "nn_masked":
+            elif method_name == "nn_masked":
                 print(f"Min table dims: {min_table_dims}")
 
                 # Get detected ball positions
@@ -303,7 +318,9 @@ class Test:
         print("Total results:")
         self.result.print_metrics()
 
-        self.result.save_to_file(os.path.join(self.folder, f"{detection_method}_results.json"))
+        self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
+
+        return self.result
 
     def test_projection(self):
         expected_output_file = os.path.join(self.validation_folder, f"set-{self.set}", "real-positions.txt")
@@ -330,14 +347,19 @@ class Test:
             plt.show()
 
 def test_all():
-    calibration_directory = "./calibration"
-    entries = os.listdir(calibration_directory)
-    device_names = [entry for entry in entries if os.path.isdir(os.path.join(calibration_directory, entry))]
+    method_names = ["hough", "nn", "nn_masked"]
 
-    for set_num in range(1, 6):
+    results = {x: [] for x in method_names}
+
+    for set_num in [1, 4, 5]: #range(1, 6):
+        # Get names of folders in this set
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        entries = os.listdir(directory)
+        device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
         for device_name in device_names:
-            for detection_method in ["hough", "nn", "nn_masked"]:
-                print(f"Trying set {set_num} with device '{device_name}' and detection method '{detection_method}'")
+            for method_name in method_names:
+                print(f"\n\nTrying set {set_num} with device '{device_name}' and detection method '{method_name}'")
 
                 try:
                     test = Test(set_num, device_name)
@@ -345,12 +367,93 @@ def test_all():
                     print(e)
                     continue
 
-                test.test_image_detection(detection_method)
+                results[method_name].append(test.test_image_detection(method_name))
+        
+        # Aggregate results
+        for method_name in method_names:
+            set_result = TestResults()
+            set_result.aggregate_results(results[method_name])
+            print("Total results:")
+            set_result.print_metrics()
+            set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
+
+def draw_detection_graph(metric_name):
+    set_names = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
+    method_names = ["hough", "nn", "nn_masked"]
+    method_display_names = ['Hough', 'NN', 'NN masked', 'Other', 'poop']
+
+    metric_name_map = {
+        "true_positives": "True positives",
+        "false_positives": "False positives",
+        "true_negatives": "True negatives",
+        "false_negatives": "False negatives",
+        "mean_error": "Absolute mean error",
+        "mean_error_normalised": "Normalised mean error",
+        "precision": "Precision",
+        "recall": "Recall",
+        "f1_score": "F1 score"
+    }
+
+    values = {x: [] for x in method_names}
+
+    for set_num in range(1, 6):
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+
+        for method_name in method_names:
+            file_name = os.path.join(directory, f"{method_name}_results.json")
+
+            result_object = TestResults()
+            result = result_object.load_from_file(file_name)
+
+            values[method_name].append(result[metric_name])
+
+    # Sample data
+    # values = {
+    #     'Hough': [23, 34, 45, 55, 65],
+    #     'NN': [45, 56, 67, 70, 80],
+    #     'NN masked': [10, 20, 30, 40, 50],
+    #     'Other': [56, 78, 89, 90, 100],
+    #     'poop': [1, 2, 3, 4, 5]
+    # }
+
+    # Set the width of the bars
+    bar_width = 1/(len(method_names) + 1)
+
+    # Set the positions of the bars on the x-axis
+    x_positions = []
+    x_positions.append(np.arange(len(set_names)))
+    for i in range(len(method_names)):
+        x_positions.append([x + bar_width for x in x_positions[-1]])
+
+    # Create the bars
+    bar_sets = []
+    for i, method_name in enumerate(method_names):
+        bar_sets.append(plt.bar(x_positions[i], values[method_name], width=bar_width * .8, edgecolor='grey', label=method_display_names[i]))
+
+    # Add values above the bars
+    for bars in bar_sets:
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=6)
+
+    # Add labels and title
+    plt.xlabel('Test sets', fontweight='bold')
+    plt.ylabel(metric_name_map[metric_name], fontweight='bold')
+    plt.xticks([r + bar_width*(len(method_names)-1)/2 for r in range(len(set_names))], set_names)
+    # plt.title('Grouped Bar Chart Example')
+
+    # Add legend
+    plt.legend(loc="lower right")
+
+    # Show the chart
+    plt.show()
 
 if __name__ == "__main__":
-    # test = Test(2, "s10+_horizontal")
-    # test.test_image_detection(detection_method="nn_masked", show=True)
+    # test = Test(4, "logitech_camera")
+    # test.test_image_detection(method_name="nn", show=False)
 
     test_all()
+
+    # draw_detection_graph("f1_score")
 
     # plt.show()
