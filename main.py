@@ -19,7 +19,8 @@ image_file = "./images/home_table3.jpg"
 image_file = "./images/terrace_webcam.jpg"
 # image_file = "./images/terrace_laptop.jpg"
 image_file = "./images/terrace_phone.jpg"
-
+image_file = "./validation\supervised\set-2\s10+_horizontal\images\p15_jpg.rf.ee6a43fbae79cfa374e83110329bb374.jpg"
+image_file = "./validation\supervised\set-2\s10+_horizontal\images\p27+_jpg.rf.cd125a93197825dcbcef765bd3cfc4b3.jpg"
 
 
 image = cv2.imread(image_file)
@@ -65,7 +66,7 @@ pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_fi
 #     [[ 1.31600000e+03,  0]],
 #     [[ 5.68000000e+02,  0]]]) # lines which don't have 2 pairs parallel
 corners = find_edges.get_rect_corners(pocket_lines)
-print(f"corners: {corners}")
+# print(f"corners: {corners}")
 
 
 
@@ -96,6 +97,8 @@ print(f"corners: {corners}")
 
 table_size = np.array([1.854, 3.683]) # Snooker
 table_size = np.array([0.903, 1.676]) # English 8 ball
+# table_size = np.array([1.676, 0.903]) # English 8 ball (sideways)
+
 
 # camera_name = "logitech_camera"
 # camera_name = "laptop"
@@ -105,8 +108,8 @@ mtx = np.load(os.path.join("./calibration", camera_name, "intrinsic_matrix.npy")
 dist_coeffs = np.load(os.path.join("./calibration", camera_name, "distortion.npy"))
 dist_coeffs = None
 
-print(f"K: {mtx}")
-print(f"dist_coeffs: {dist_coeffs}")
+# print(f"K: {mtx}")
+# print(f"dist_coeffs: {dist_coeffs}")
 
 homography = find_edges.get_homography(corners, table_size)
 # print(homography)
@@ -123,13 +126,13 @@ height = table_size[1]
 points = np.array([[0, height, 0], [width, height, 0], [width, 0, 0], [0, 0, 0]], dtype=np.float32)
 # points = np.array([[0, 0, 0], [*table_size, 0], [*(table_size/2), 0]], dtype=np.float32)
 img_points, _ = cv2.projectPoints(points, rvec, tvec, mtx, dist_coeffs)
-print(f"img_points: {img_points}")
+# print(f"img_points: {img_points}")
 find_edges.plotPoints(img_points)
 
 img_points = corners
 world_points = find_edges.get_world_pos_from_perspective(img_points, mtx, rvec, tvec, 0)
 
-print(f"world_points (should correspond to the corners of the table, with dims {table_size}):\n{world_points}")
+# print(f"world_points (should correspond to the corners of the table, with dims {table_size}):\n{world_points}")
 
 
 balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
@@ -144,7 +147,7 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 # img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
 img_balls = balls_eval_multiple.get_balls(image_file)["centers"]
 
-print(f"ball positions: {img_balls}")
+# print(f"Homography ball positions: {img_balls}")
 
 
 # img_balls = [[500, 325],
@@ -157,7 +160,7 @@ for ball in img_balls:
 
 
 real_balls_projection = find_edges.get_world_pos_from_perspective(img_balls, mtx, rvec, tvec, -(0.037 - 0.0508/2))
-print(f"Real ball locations: {real_balls_projection}")
+# print(f"Real ball locations: {real_balls_projection}")
 
 find_edges.display_table(real_balls, table_dims=table_size, ball_diameter=0.0508, title="Homography balls")
 find_edges.display_table(real_balls_projection, table_dims=table_size, ball_diameter=0.0508, title="Projection balls")

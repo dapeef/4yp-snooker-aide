@@ -25,15 +25,37 @@ def get_closest_point(point_of_interest, points):
     
     return closest_point, closest_dist
 
-def load_points_from_file(file_path):
+def load_points_from_real_file(file_path):
     """Create a NumPy array of points from a file."""
+    scale_factor = 1/100
+
     points = []
+    
     with open(file_path, 'r') as file:
         for line in file:
             parts = line.split()
+
             if len(parts) == 3:
-                color, x, y = parts
+                ball_type, x, y = parts
+                points.append(np.array([float(x)*scale_factor, float(y)*scale_factor]))
+
+    return np.array(points)
+
+def load_points_from_corner_file(file_path):
+    """Create a NumPy array of points from a file."""
+
+    points = []
+
+    with open(file_path, 'r') as file:
+        for line in file:
+            parts = line.split()
+
+            if len(parts) == 2:
+                x, y = parts
                 points.append(np.array([float(x), float(y)]))
+            else:
+                raise Exception(f"Bad corner file: {file_path}")
+            
     return np.array(points)
 
 def load_points_from_training_file(file_path, image_file):
@@ -57,32 +79,35 @@ def load_points_from_training_file(file_path, image_file):
 
 def rotate_points(file_path, points):
     file_path = os.path.basename(file_path)
-    file_name = os.path.splitext(file_path)[0]
 
-    rotation_count = file_name.count("-")
+    rotation_symbol = file_path[3]
     
     new_points = []
 
     for point in points:
-        if rotation_count == 0:
+        if rotation_symbol == "_" or rotation_symbol == ".":
             # No rotation
+            rotation_type = 0
             new_points.append(point)
 
-        if rotation_count == 1:
+        if rotation_symbol == "-":
             # 180 degree (other end of the table)
+            rotation_type = 1
             new_points.append(TABLE_SIZE - point)
 
-        if rotation_count == 2:
+        if rotation_symbol == "+":
             # 90 degree (toilet side)
+            rotation_type = 2
             new_point = np.array([TABLE_SIZE[1] - point[1], point[0]])
             new_points.append(new_point)
 
-        if rotation_count == 2:
+        if rotation_symbol == "=":
             # 270 degree (window side)
+            rotation_type = 3
             new_point = np.array([point[1], TABLE_SIZE[0] - point[0]])
             new_points.append(new_point)
 
-    return np.array(new_points)
+    return np.array(new_points), rotation_type
 
 
 class TestResults:
@@ -137,14 +162,10 @@ class TestResults:
             return None  # Return None if the list is empty
         return sum(lst) / len(lst)
 
-    def calculate_initial_metrics(self, detected_points, expected_points, min_table_dims):
-        match_distance = min_table_dims / 15
-
-        print(match_distance)
-
+    def calculate_initial_metrics(self, detected_points, expected_points, min_table_dims, match_radius):
         self.detected_points = detected_points
         self.expected_points = expected_points
-        self.match_distance = match_distance
+        self.match_distance = match_radius
 
         self.true_positives = 0
         self.false_positives = 0
@@ -240,18 +261,19 @@ class Test:
 
         if not os.path.exists(self.folder):
             raise Exception(f"Validation set {set} with device '{device}' doesn't exist")
+        
+        self.images_folder = os.path.join(self.folder, "images")
+        self.labels_folder = os.path.join(self.folder, "labels")
+        self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
 
     def test_image_detection(self, method_name, show=False):
-        # method_name values can be "hough", "nn"
-
-        images_folder = os.path.join(self.folder, "images")
-        labels_folder = os.path.join(self.folder, "labels")
+        # method_name values can be "hough", "nn", "nn_masked"
 
         results = []
 
-        for i, file in enumerate(os.listdir(images_folder)):
-            image_file = os.path.join(images_folder, file)
-            label_file = os.path.join(labels_folder, f"{os.path.splitext(file)[0]}.txt")
+        for i, file in enumerate(os.listdir(self.images_folder)):
+            image_file = os.path.join(self.images_folder, file)
+            label_file = os.path.join(self.labels_folder, f"{os.path.splitext(file)[0]}.txt")
 
             print(f"\nAnalysing image: {image_file} with detection method: {method_name}")
 
@@ -306,12 +328,14 @@ class Test:
             expected_points = load_points_from_training_file(label_file, image_file)
             # print(f"expected ball positions: {expected_points}")
 
+            match_radius=min_table_dims/15
+
+            self.draw(detected_points, expected_points, image_file=image_file, match_radius=match_radius, show=show)
+
             results.append(TestResults())
-            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims)
+            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
             results[i].calculate_secondary_metrics()
             results[i].print_metrics()
-
-            self.draw(image_file, detected_points, expected_points, min_table_dims/15, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
@@ -322,15 +346,97 @@ class Test:
 
         return self.result
 
-    def test_projection(self):
+    def test_projection(self, method_name, show=False):
+        # Get expected points
         expected_output_file = os.path.join(self.validation_folder, f"set-{self.set}", "real-positions.txt")
+        original_expected_points = load_points_from_real_file(expected_output_file)
 
-    def draw(self, image_file, detected_points, expected_points, match_radius=0, show=False):
-        img = cv2.imread(image_file)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+        # Get camera calibration data
+        mtx = np.load(os.path.join("./calibration", self.device, "intrinsic_matrix.npy"))
+        dist_coeffs = np.load(os.path.join("./calibration", self.device, "distortion.npy"))
+
+        # Table size
+        # table_size = np.array([1.854, 3.683]) # Snooker
+        table_size = np.array([0.903, 1.676]) # English 8 ball
+        # table_size = np.array([1.676, 0.903]) # English 8 ball
+        min_table_dims = table_size[0]
+
+        results = []
+
+        for i, file in enumerate(os.listdir(self.images_folder)):
+            image_file = os.path.join(self.images_folder, file)
+            label_file = os.path.join(self.labels_folder, f"{os.path.splitext(file)[0]}.txt")
+            corner_label_file = os.path.join(self.corner_labels_folder, f"{os.path.splitext(file)[0]}.txt")
+
+            expected_points, rot_type = rotate_points(image_file, original_expected_points)
+
+            if rot_type == 0 or rot_type == 1:
+                local_table_size = table_size
+            else:
+                local_table_size = np.array([table_size[1], table_size[0]])
+
+            image_points = load_points_from_training_file(label_file, image_file)
+            corners = load_points_from_corner_file(corner_label_file)
+
+            if method_name == "homography":
+                homography = find_edges.get_homography(corners, local_table_size)
+                
+                detected_points = []
+                for ball in image_points:
+                    detected_points.append(find_edges.get_world_point(ball, homography))
+
+            elif method_name == "projection":
+                rvec, tvec, projection = find_edges.get_perspective(corners, local_table_size, mtx, dist_coeffs)
+
+                detected_points = find_edges.get_world_pos_from_perspective(image_points, mtx, rvec, tvec, -(0.037 - 0.0508/2))
+
+            match_radius = .1
+
+            img = cv2.imread(image_file)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            plt.figure()
+            plt.title(image_file)
+            a = plt.gca()
+            a.imshow(img)
+
+            self.draw(detected_points, expected_points, image_size=local_table_size, match_radius=match_radius, show=show)
+
+            results.append(TestResults())
+            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
+            results[i].calculate_secondary_metrics()
+            results[i].print_metrics()
+
+            if results[i].false_positives != 0 or \
+                   results[i].true_negatives != 0 or \
+                   results[i].false_negatives != 0:
+                print("!!! Not all balls matching, check this is correct")
+
+        self.result = TestResults()
+        self.result.aggregate_results(results)
+        print("Total results:")
+        self.result.print_metrics()
+
+        self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
+
+        return self.result
+
+    def draw(self, detected_points, expected_points, image_file=None, image_size=None, match_radius=0, show=False):
         plt.figure()
-        plt.imshow(img)
+
+        if not image_file is None:
+            img = cv2.imread(image_file)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            
+            plt.imshow(img)
+        
+        elif not image_size is None:
+            plt.xlim([0, image_size[0]])
+            plt.ylim([0, image_size[1]])
+            plt.gca().set_aspect('equal', adjustable='box')
+
+        else:
+            raise Exception("Neither image_file nor image_size given")
+        
         ax = plt.gca()
 
         for point in detected_points:
@@ -346,12 +452,15 @@ class Test:
         if show:
             plt.show()
 
-def test_all():
-    method_names = ["hough", "nn", "nn_masked"]
+def test_all(process_name):
+    if process_name == "detection":
+        method_names = ["hough", "nn", "nn_masked"]
+    elif process_name == "projection":
+        method_names = ["homography", "projection"]
 
     results = {x: [] for x in method_names}
 
-    for set_num in [1, 4, 5]: #range(1, 6):
+    for set_num in range(1, 6):
         # Get names of folders in this set
         directory = os.path.join("./validation/supervised", f"set-{set_num}")
         entries = os.listdir(directory)
@@ -359,7 +468,7 @@ def test_all():
 
         for device_name in device_names:
             for method_name in method_names:
-                print(f"\n\nTrying set {set_num} with device '{device_name}' and detection method '{method_name}'")
+                print(f"\n\nTrying set {set_num} with device '{device_name}' and method '{method_name}'")
 
                 try:
                     test = Test(set_num, device_name)
@@ -367,7 +476,15 @@ def test_all():
                     print(e)
                     continue
 
-                results[method_name].append(test.test_image_detection(method_name))
+                if process_name == "detection":
+                    results[method_name].append(test.test_image_detection(method_name))
+
+                elif process_name == "projection":
+                    try:
+                        results[method_name].append(test.test_projection(method_name))
+                    except Exception as e:
+                        print(f"Test failed: {e}")
+                        continue
         
         # Aggregate results
         for method_name in method_names:
@@ -380,7 +497,7 @@ def test_all():
 def draw_detection_graph(metric_name):
     set_names = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
     method_names = ["hough", "nn", "nn_masked"]
-    method_display_names = ['Hough', 'NN', 'NN masked', 'Other', 'poop']
+    method_display_names = ['Hough', 'NN', 'NN masked']
 
     metric_name_map = {
         "true_positives": "True positives",
@@ -406,7 +523,34 @@ def draw_detection_graph(metric_name):
             result = result_object.load_from_file(file_name)
 
             values[method_name].append(result[metric_name])
+    
+    draw_graph(set_names, method_names, method_display_names, values, metric_name_map[metric_name])
 
+def draw_projection_graph(set_num=2):
+    directory = os.path.join("./validation/supervised", f"set-{set_num}")
+
+    method_names = ["homography", "projection"]
+    method_display_names = ['Homography', 'Projection']
+
+    values = []
+
+    for method_name in method_names:
+        file_name = os.path.join(directory, f"{method_name}_results.json")
+        result_object = TestResults()
+        result = result_object.load_from_file(file_name)
+
+        values.append(result["mean_error_normalised"])
+
+    # Create bar chart
+    plt.bar(method_display_names, values)
+
+    # Add labels and title
+    plt.xlabel('Projection algorithm')
+    plt.ylabel("Normalised mean error")
+
+    plt.show()
+
+def draw_graph(set_names, method_names, method_display_names, values, metric_display_name):
     # Sample data
     # values = {
     #     'Hough': [23, 34, 45, 55, 65],
@@ -438,7 +582,7 @@ def draw_detection_graph(metric_name):
 
     # Add labels and title
     plt.xlabel('Test sets', fontweight='bold')
-    plt.ylabel(metric_name_map[metric_name], fontweight='bold')
+    plt.ylabel(metric_display_name, fontweight='bold')
     plt.xticks([r + bar_width*(len(method_names)-1)/2 for r in range(len(set_names))], set_names)
     # plt.title('Grouped Bar Chart Example')
 
@@ -449,11 +593,16 @@ def draw_detection_graph(metric_name):
     plt.show()
 
 if __name__ == "__main__":
-    # test = Test(4, "logitech_camera")
-    # test.test_image_detection(method_name="nn", show=False)
+    # test = Test(2, "logitech_camera")
+    # test.test_image_detection(method_name="nn_masked", show=True)
 
-    test_all()
+    # test = Test(2, "s10+_horizontal")
+    # test.test_projection("projection", show=True)
 
-    # draw_detection_graph("f1_score")
+    # test_all("projection")
+
+    draw_projection_graph()
+
+    # draw_detection_graph("precision")
 
     # plt.show()
