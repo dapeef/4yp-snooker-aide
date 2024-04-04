@@ -8,9 +8,12 @@ warnings.filterwarnings('ignore')
 
 
 
-def get_pockets(image_file):
+def evaluate(image_file):
     evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
-    
+
+    return evaluate_from_evaluator(evaluator, image_file)
+
+def evaluate_from_evaluator(evaluator, image_file):
     evaluator.create_dataset(image_file)
     target = evaluator.get_boxes(0)
 

@@ -41,7 +41,7 @@ image = cv2.imread(image_file)
 
 
 
-pockets = pockets_eval.get_pockets(image_file)
+pockets = pockets_eval.evaluate(image_file)
 # plt.show()
 
 

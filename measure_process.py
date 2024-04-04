@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import json
 import nn_utils
+import time
 
 
 TABLE_SIZE = np.array([0.903, 1.676]) # English 8 ball
@@ -124,6 +125,8 @@ class TestResults:
         print(f"Precision: {self.precision}")
         print(f"Recall: {self.recall}")
         print(f"F1 score: {self.f1_score}")
+        print(f"Evaluation time: {self.eval_time}")
+        print(f"One off time: {self.one_off_time}")
 
     def pickle_metrics(self):
         return {
@@ -135,7 +138,9 @@ class TestResults:
             "mean_error_normalised": self.mean_error_normalised,
             "precision": self.precision,
             "recall": self.recall,
-            "f1_score": self.f1_score
+            "f1_score": self.f1_score,
+            "eval_time": self.eval_time,
+            "one_off_time": self.one_off_time
         }
 
     def unpickle_metrics(self, pickle):
@@ -148,6 +153,8 @@ class TestResults:
         self.precision = pickle["precision"]
         self.recall = pickle["recall"]
         self.f1_score = pickle["f1_score"]
+        self.eval_time = pickle["eval_time"]
+        self.one_off_time = pickle["one_off_time"]
 
     def save_to_file(self, file_name):
         with open(file_name, 'w') as json_file:
@@ -230,7 +237,6 @@ class TestResults:
             return 0
         return 2 * (self.precision * self.recall) / (self.precision + self.recall)
     
-
     def aggregate_results(self, results):
         self.true_positives = 0
         self.false_positives = 0
@@ -238,6 +244,8 @@ class TestResults:
         self.false_negatives = 0
         mean_errors = []
         mean_errors_normalised = []
+        times = []
+        one_off_times = []
 
         for result in results:
             self.true_positives += result.true_positives
@@ -246,9 +254,13 @@ class TestResults:
             self.false_negatives += result.false_negatives
             mean_errors.append(result.mean_error)
             mean_errors_normalised.append(result.mean_error_normalised)
+            times.append(result.eval_time)
+            one_off_times.append(result.one_off_time)
 
         self.mean_error = self.mean_of_list(mean_errors)
         self.mean_error_normalised = self.mean_of_list(mean_errors_normalised)
+        self.eval_time = self.mean_of_list(times)
+        self.one_off_time = self.mean_of_list(one_off_times)
 
         self.calculate_secondary_metrics()
 
@@ -266,8 +278,16 @@ class Test:
         self.labels_folder = os.path.join(self.folder, "labels")
         self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
 
-    def test_image_detection(self, method_name, show=False):
+    def test_ball_detection(self, method_name, show=False):
         # method_name values can be "hough", "nn", "nn_masked"
+
+        balls_evaluator_init_time_start = time.time()
+        balls_evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_multiple.pth", 20)
+        balls_evaluator_init_time = time.time() - balls_evaluator_init_time_start
+
+        pockets_evaluator_init_time_start = time.time()
+        pockets_evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
+        pockets_evaluator_init_time = time.time() - pockets_evaluator_init_time_start
 
         results = []
 
@@ -277,13 +297,14 @@ class Test:
 
             print(f"\nAnalysing image: {image_file} with detection method: {method_name}")
 
-            
+            mask_time_start = time.time()
             # Get masked image to reduce noise
-            pockets = pockets_eval.get_pockets(image_file)
+            pockets = pockets_eval.evaluate_from_evaluator(pockets_evaluator, image_file)
             pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
             # find_edges.get_edges(image_file, pocket_lines, pocket_mask, 5)
             find_edges.save_masked_image(image_file, pocket_mask)
             masked_image_file = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
+            mask_time = time.time() - mask_time_start
 
             # Get pocket locations, and min_table_dim
             pocket_locations = find_edges.get_rect_corners(pocket_lines)
@@ -295,34 +316,58 @@ class Test:
                         min_table_dims = min(min_table_dims, distance)
 
             if method_name == "hough":
-                print(f"Min table dims: {min_table_dims}")
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
+
+                # Evaluate ball positions using hough
+                detected_points = find_edges.find_balls(image_file)
+                # print(f"ball positions: {detected_points}")
+
+                method_time = time.time() - method_time_start
+                one_off_time = method_time
+
+            elif method_name == "hough_masked":
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
 
                 # Evaluate ball positions using hough
                 detected_points = find_edges.find_balls(masked_image_file)
                 # print(f"ball positions: {detected_points}")
 
+                method_time = time.time() - method_time_start
+                method_time += mask_time
+                one_off_time = pockets_evaluator_init_time + method_time
+
             elif method_name == "nn":
-                print(f"Min table dims: {min_table_dims}")
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
 
                 # Get detected ball positions
-                target = balls_eval_multiple.evaluate(image_file)
+                target = balls_eval_multiple.evaluate_from_evaluator(balls_evaluator, image_file)
                 target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
                 target = nn_utils.get_bbox_centers(target)
 
                 detected_points = target["centers"]
                 # print(f"ball positions: {detected_points}")
+
+                method_time = time.time() - method_time_start
+                one_off_time = method_time + balls_evaluator_init_time
 
             elif method_name == "nn_masked":
-                print(f"Min table dims: {min_table_dims}")
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
 
                 # Get detected ball positions
-                target = balls_eval_multiple.evaluate(masked_image_file)
+                target = balls_eval_multiple.evaluate_from_evaluator(balls_evaluator, image_file)
                 target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
                 target = nn_utils.get_bbox_centers(target)
 
                 detected_points = target["centers"]
                 # print(f"ball positions: {detected_points}")
 
+                method_time = time.time() - method_time_start
+                method_time += mask_time
+                one_off_time = pockets_evaluator_init_time + balls_evaluator_init_time + method_time
 
             # Get expected ball positions
             expected_points = load_points_from_training_file(label_file, image_file)
@@ -335,6 +380,8 @@ class Test:
             results.append(TestResults())
             results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
             results[i].calculate_secondary_metrics()
+            results[i].eval_time = method_time
+            results[i].one_off_time = one_off_time
             results[i].print_metrics()
 
         self.result = TestResults()
@@ -352,8 +399,10 @@ class Test:
         original_expected_points = load_points_from_real_file(expected_output_file)
 
         # Get camera calibration data
+        camera_load_time_start = time.time()
         mtx = np.load(os.path.join("./calibration", self.device, "intrinsic_matrix.npy"))
         dist_coeffs = np.load(os.path.join("./calibration", self.device, "distortion.npy"))
+        camera_load_time = time.time() - camera_load_time_start
 
         # Table size
         # table_size = np.array([1.854, 3.683]) # Snooker
@@ -379,16 +428,25 @@ class Test:
             corners = load_points_from_corner_file(corner_label_file)
 
             if method_name == "homography":
+                method_time_start = time.time()
+
                 homography = find_edges.get_homography(corners, local_table_size)
                 
                 detected_points = []
                 for ball in image_points:
                     detected_points.append(find_edges.get_world_point(ball, homography))
 
-            elif method_name == "projection":
-                rvec, tvec, projection = find_edges.get_perspective(corners, local_table_size, mtx, dist_coeffs)
+                method_time = time.time() - method_time_start
+                one_off_time = method_time
 
+            elif method_name == "projection":
+                method_time_start = time.time()
+
+                rvec, tvec, projection = find_edges.get_perspective(corners, local_table_size, mtx, dist_coeffs)
                 detected_points = find_edges.get_world_pos_from_perspective(image_points, mtx, rvec, tvec, -(0.037 - 0.0508/2))
+
+                method_time = time.time() - method_time_start
+                one_off_time = method_time + camera_load_time
 
             match_radius = .1
 
@@ -404,6 +462,8 @@ class Test:
             results.append(TestResults())
             results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
             results[i].calculate_secondary_metrics()
+            results[i].eval_time = method_time
+            results[i].one_off_time = one_off_time
             results[i].print_metrics()
 
             if results[i].false_positives != 0 or \
@@ -454,7 +514,7 @@ class Test:
 
 def test_all(process_name):
     if process_name == "detection":
-        method_names = ["hough", "nn", "nn_masked"]
+        method_names = ["hough", "hough_masked", "nn", "nn_masked"]
     elif process_name == "projection":
         method_names = ["homography", "projection"]
 
@@ -477,7 +537,7 @@ def test_all(process_name):
                     continue
 
                 if process_name == "detection":
-                    results[method_name].append(test.test_image_detection(method_name))
+                    results[method_name].append(test.test_ball_detection(method_name))
 
                 elif process_name == "projection":
                     try:
@@ -496,8 +556,8 @@ def test_all(process_name):
 
 def draw_detection_graph(metric_name):
     set_names = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
-    method_names = ["hough", "nn", "nn_masked"]
-    method_display_names = ['Hough', 'NN', 'NN masked']
+    method_names = ["hough", "hough_masked", "nn", "nn_masked"]
+    method_display_names = ['Hough', 'Hough masked', 'NN', 'NN masked']
 
     metric_name_map = {
         "true_positives": "True positives",
@@ -599,10 +659,10 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
 
-    # test_all("projection")
+    test_all("detection")
 
-    draw_projection_graph()
+    # draw_projection_graph()
 
-    # draw_detection_graph("precision")
+    # draw_detection_graph("f1_score")
 
     # plt.show()

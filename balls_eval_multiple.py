@@ -10,17 +10,22 @@ import cProfile
 
 
 def evaluate(image_file):
-    start_time = time.time()
+    # start_time = time.time()
     evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_multiple.pth", 20)
     # print(f"Model load time: {time.time() - start_time}")
-    start_time = time.time()
+
+    return evaluate_from_evaluator(evaluator, image_file)
+
+def evaluate_from_evaluator(evaluator, image_file):
+    # start_time = time.time()
     evaluator.create_dataset(image_file)
     # print(f"Dataset creation time: {time.time() - start_time}")
-    start_time = time.time()
+    # start_time = time.time()
     target = evaluator.get_boxes(0)
     # print(f"Model eval time: {time.time() - start_time}")
 
     return target
+
 
 def filter_show(target, image_file, confidence_threshold):
     target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=confidence_threshold, remove_overlaps=False)
