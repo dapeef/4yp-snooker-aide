@@ -9,9 +9,24 @@ import matplotlib.patches as patches
 import json
 import nn_utils
 import time
+import sam
 
 
 TABLE_SIZE = np.array([0.903, 1.676]) # English 8 ball
+SET_NAMES = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
+METRIC_NAME_MAP = {
+    "true_positives": "True positives",
+    "false_positives": "False positives",
+    "true_negatives": "True negatives",
+    "false_negatives": "False negatives",
+    "mean_error": "Absolute mean error",
+    "mean_error_normalised": "Normalised mean error",
+    "precision": "Precision",
+    "recall": "Recall",
+    "f1_score": "F1 score",
+    "eval_time": "Evaluation time",
+    "one_off_time": "One-off evaluation time"
+}
 
 def get_closest_point(point_of_interest, points):
     """Find the point in a list closest to a point of interest."""
@@ -169,7 +184,7 @@ class TestResults:
             return None  # Return None if the list is empty
         return sum(lst) / len(lst)
 
-    def calculate_initial_metrics(self, detected_points, expected_points, min_table_dims, match_radius):
+    def calculate_initial_metrics(self, detected_points, expected_points, normalisation, match_radius):
         self.detected_points = detected_points
         self.expected_points = expected_points
         self.match_distance = match_radius
@@ -215,7 +230,7 @@ class TestResults:
 
         # Calculate mean error
         self.mean_error = self.mean_of_list(error_distances)
-        self.mean_error_normalised = self.mean_error / min_table_dims
+        self.mean_error_normalised = self.mean_error / normalisation
 
     def calculate_secondary_metrics(self):
         self.precision = self.calculate_precision()
@@ -279,7 +294,7 @@ class Test:
         self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
 
     def test_ball_detection(self, method_name, show=False):
-        # method_name values can be "hough", "nn", "nn_masked"
+        # method_name values can be "hough", "hough_masked", "nn", "nn_masked"
 
         balls_evaluator_init_time_start = time.time()
         balls_evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_multiple.pth", 20)
@@ -373,9 +388,7 @@ class Test:
             expected_points = load_points_from_training_file(label_file, image_file)
             # print(f"expected ball positions: {expected_points}")
 
-            match_radius=min_table_dims/15
-
-            self.draw(detected_points, expected_points, image_file=image_file, match_radius=match_radius, show=show)
+            match_radius = min_table_dims/15
 
             results.append(TestResults())
             results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
@@ -383,6 +396,8 @@ class Test:
             results[i].eval_time = method_time
             results[i].one_off_time = one_off_time
             results[i].print_metrics()
+
+            self.draw(detected_points, expected_points, image_file=image_file, match_radius=match_radius, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
@@ -406,9 +421,9 @@ class Test:
 
         # Table size
         # table_size = np.array([1.854, 3.683]) # Snooker
-        table_size = np.array([0.903, 1.676]) # English 8 ball
+        # table_size = np.array([0.903, 1.676]) # English 8 ball
         # table_size = np.array([1.676, 0.903]) # English 8 ball
-        min_table_dims = table_size[0]
+        min_table_dims = TABLE_SIZE[0]
 
         results = []
 
@@ -420,9 +435,9 @@ class Test:
             expected_points, rot_type = rotate_points(image_file, original_expected_points)
 
             if rot_type == 0 or rot_type == 1:
-                local_table_size = table_size
+                local_table_size = TABLE_SIZE
             else:
-                local_table_size = np.array([table_size[1], table_size[0]])
+                local_table_size = np.array([TABLE_SIZE[1], TABLE_SIZE[0]])
 
             image_points = load_points_from_training_file(label_file, image_file)
             corners = load_points_from_corner_file(corner_label_file)
@@ -457,10 +472,8 @@ class Test:
             a = plt.gca()
             a.imshow(img)
 
-            self.draw(detected_points, expected_points, image_size=local_table_size, match_radius=match_radius, show=show)
-
             results.append(TestResults())
-            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
+            results[i].calculate_initial_metrics(detected_points, expected_points, 1, match_radius)
             results[i].calculate_secondary_metrics()
             results[i].eval_time = method_time
             results[i].one_off_time = one_off_time
@@ -470,6 +483,91 @@ class Test:
                    results[i].true_negatives != 0 or \
                    results[i].false_negatives != 0:
                 print("!!! Not all balls matching, check this is correct")
+
+            self.draw(detected_points, expected_points, image_size=local_table_size, match_radius=match_radius, show=show)
+
+        self.result = TestResults()
+        self.result.aggregate_results(results)
+        print("Total results:")
+        self.result.print_metrics()
+
+        self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
+
+        return self.result
+
+    def test_pocket_detection(self, method_name, show=False):
+        # method_name values can be "sam", "nn_corner"
+        
+        if method_name == "sam":
+            sam_evaluator_init_time_start = time.time()
+            sam_evaluator = sam.initialise_sam()
+            sam_evaluator_init_time = time.time() - sam_evaluator_init_time_start
+
+        elif method_name == "nn_corner":
+            pockets_evaluator_init_time_start = time.time()
+            pockets_evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
+            pockets_evaluator_init_time = time.time() - pockets_evaluator_init_time_start
+
+        results = []
+
+        for i, file in enumerate(os.listdir(self.images_folder)):
+            image_file = os.path.join(self.images_folder, file)
+            corner_label_file = os.path.join(self.corner_labels_folder, f"{os.path.splitext(file)[0]}.txt")
+
+            print(f"\nAnalysing image: {image_file} with detection method: {method_name}")
+            
+            corner_label_file = os.path.join(self.corner_labels_folder, f"{os.path.splitext(file)[0]}.txt")
+            expected_points = load_points_from_corner_file(corner_label_file)
+
+            # Get pocket locations, and min_table_dim
+            pocket_locations = expected_points
+            min_table_dims = np.inf
+            for j, pocket1 in enumerate(pocket_locations):
+                for k, pocket2 in enumerate(pocket_locations):
+                    if j != k:
+                        distance = np.linalg.norm(pocket2 - pocket1)
+                        min_table_dims = min(min_table_dims, distance)
+
+            if method_name == "sam":
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
+
+                mask_file = os.path.join("./temp", f"{os.path.splitext(file)[0]}.txt")
+
+                image_file = "images\\snooker1.png"
+                input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
+                input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
+                expected_points = np.array([[494, 321], [1448, 321], [1618, 946], [305, 944]])
+
+                sam.create_mask_from_model(sam_evaluator, image_file, input_points, input_labels, mask_file)
+                lines = find_edges.get_sam_lines(mask_file)
+                lines = lines[0]
+                detected_points = find_edges.get_rect_corners(lines)
+
+                method_time = time.time() - method_time_start
+                one_off_time = method_time + sam_evaluator_init_time
+
+            elif method_name == "nn_corner":
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
+
+                pockets = pockets_eval.evaluate_from_evaluator(pockets_evaluator, image_file)
+                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
+                detected_points = find_edges.get_rect_corners(pocket_lines)
+
+                method_time = time.time() - method_time_start
+                one_off_time = method_time + pockets_evaluator_init_time
+
+            match_radius = min_table_dims/2
+
+            results.append(TestResults())
+            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
+            results[i].calculate_secondary_metrics()
+            results[i].eval_time = method_time
+            results[i].one_off_time = one_off_time
+            results[i].print_metrics()
+
+            self.draw(detected_points, expected_points, image_file=image_file, match_radius=match_radius, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
@@ -511,6 +609,7 @@ class Test:
 
         if show:
             plt.show()
+
 
 def test_all(process_name):
     if process_name == "detection":
@@ -554,22 +653,52 @@ def test_all(process_name):
             set_result.print_metrics()
             set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
 
+def test_corner_detection():
+    method_names = ["sam", "nn_corner"]
+
+    results = {x: [] for x in method_names}
+
+    set_num = 2
+
+    # Get names of folders in this set
+    directory = os.path.join("./validation/supervised", f"set-{set_num}")
+    entries = os.listdir(directory)
+    device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
+    # SAM
+    test = Test(set_num, "laptop_camera")
+    results["sam"].append(test.test_pocket_detection("sam"))
+
+    # nn
+    for device_name in device_names:
+        method_name = "nn"
+        
+        print(f"\n\nTrying set {set_num} with device '{device_name}' and method '{method_name}'")
+
+        try:
+            test = Test(set_num, device_name)
+        except Exception as e:
+            print(e)
+            continue
+
+        try:
+            results[method_name].append(test.test_pocket_detection(method_name))
+        except Exception as e:
+            print(f"Test failed: {e}")
+            continue
+
+    # Aggregate results
+    for method_name in method_names:
+        set_result = TestResults()
+        set_result.aggregate_results(results[method_name])
+        print("Total results:")
+        set_result.print_metrics()
+        set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
+
+
 def draw_detection_graph(metric_name):
-    set_names = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
     method_names = ["hough", "hough_masked", "nn", "nn_masked"]
     method_display_names = ['Hough', 'Hough masked', 'NN', 'NN masked']
-
-    metric_name_map = {
-        "true_positives": "True positives",
-        "false_positives": "False positives",
-        "true_negatives": "True negatives",
-        "false_negatives": "False negatives",
-        "mean_error": "Absolute mean error",
-        "mean_error_normalised": "Normalised mean error",
-        "precision": "Precision",
-        "recall": "Recall",
-        "f1_score": "F1 score"
-    }
 
     values = {x: [] for x in method_names}
 
@@ -584,13 +713,37 @@ def draw_detection_graph(metric_name):
 
             values[method_name].append(result[metric_name])
     
-    draw_graph(set_names, method_names, method_display_names, values, metric_name_map[metric_name])
+    draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
 
-def draw_projection_graph(set_num=2):
-    directory = os.path.join("./validation/supervised", f"set-{set_num}")
-
+def draw_projection_graph():
     method_names = ["homography", "projection"]
     method_display_names = ['Homography', 'Projection']
+
+    draw_single_set_graph(method_names, method_display_names, "mean_error", "Mean error", set_num=2)
+
+def draw_pocket_detection_graph(metric_name, set_num=2):
+    method_names = ["sam", "nn_corner"]
+    method_display_names = ['MetaAI\'s SAM', 'NN']
+
+    draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
+
+    # values = {x: [] for x in metric_names}
+
+    # directory = os.path.join("./validation/supervised", f"set-{set_num}")
+
+    # for metric_name in metric_names:
+    #     file_name = os.path.join(directory, f"{metric_name}_results.json")
+
+    #     result_object = TestResults()
+    #     result = result_object.load_from_file(file_name)
+
+    #     values[metric_name].append(result[metric_name])
+    
+    # draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
+
+
+def draw_single_set_graph(method_names, method_display_names, metric_name, metric_display_name, set_num=2):
+    directory = os.path.join("./validation/supervised", f"set-{set_num}")
 
     values = []
 
@@ -599,18 +752,18 @@ def draw_projection_graph(set_num=2):
         result_object = TestResults()
         result = result_object.load_from_file(file_name)
 
-        values.append(result["mean_error_normalised"])
+        values.append(result[metric_name])
 
     # Create bar chart
     plt.bar(method_display_names, values)
 
     # Add labels and title
     plt.xlabel('Projection algorithm')
-    plt.ylabel("Normalised mean error")
+    plt.ylabel(metric_display_name)
 
     plt.show()
 
-def draw_graph(set_names, method_names, method_display_names, values, metric_display_name):
+def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_axis_label):
     # Sample data
     # values = {
     #     'Hough': [23, 34, 45, 55, 65],
@@ -621,18 +774,18 @@ def draw_graph(set_names, method_names, method_display_names, values, metric_dis
     # }
 
     # Set the width of the bars
-    bar_width = 1/(len(method_names) + 1)
+    bar_width = 1/(len(bar_names) + 1)
 
     # Set the positions of the bars on the x-axis
     x_positions = []
-    x_positions.append(np.arange(len(set_names)))
-    for i in range(len(method_names)):
+    x_positions.append(np.arange(len(group_names)))
+    for i in range(len(bar_names)):
         x_positions.append([x + bar_width for x in x_positions[-1]])
 
     # Create the bars
     bar_sets = []
-    for i, method_name in enumerate(method_names):
-        bar_sets.append(plt.bar(x_positions[i], values[method_name], width=bar_width * .8, edgecolor='grey', label=method_display_names[i]))
+    for i, method_name in enumerate(bar_names):
+        bar_sets.append(plt.bar(x_positions[i], values[method_name], width=bar_width * .8, edgecolor='grey', label=bar_display_names[i]))
 
     # Add values above the bars
     for bars in bar_sets:
@@ -642,8 +795,8 @@ def draw_graph(set_names, method_names, method_display_names, values, metric_dis
 
     # Add labels and title
     plt.xlabel('Test sets', fontweight='bold')
-    plt.ylabel(metric_display_name, fontweight='bold')
-    plt.xticks([r + bar_width*(len(method_names)-1)/2 for r in range(len(set_names))], set_names)
+    plt.ylabel(y_axis_label, fontweight='bold')
+    plt.xticks([r + bar_width*(len(bar_names)-1)/2 for r in range(len(group_names))], group_names)
     # plt.title('Grouped Bar Chart Example')
 
     # Add legend
@@ -652,17 +805,25 @@ def draw_graph(set_names, method_names, method_display_names, values, metric_dis
     # Show the chart
     plt.show()
 
+
 if __name__ == "__main__":
-    # test = Test(2, "logitech_camera")
-    # test.test_image_detection(method_name="nn_masked", show=True)
+    test = Test(2, "laptop_camera")
+    test.test_ball_detection(method_name="hough", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
 
-    test_all("detection")
+    # test = Test(2, "s10+_horizontal")
+    # test.test_pocket_detection("nn_corner", show=True)
 
-    # draw_projection_graph()
+    # test_all("projection")
+    # test_all("detection")
+    # test_corner_detection()
 
     # draw_detection_graph("f1_score")
+    # draw_projection_graph()
+    # draw_pocket_detection_graph("mean_error_normalised")
+    # draw_pocket_detection_graph("eval_time")
+    # draw_pocket_detection_graph("one_off_time")
 
     # plt.show()

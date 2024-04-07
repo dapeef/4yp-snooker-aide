@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import time
+import find_edges
 
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
@@ -43,7 +44,12 @@ def show_anns(anns):
 
 
 
-def create_mask(image_file, input_points, input_labels):
+def create_mask(image_file, input_points, input_labels, output_file=None):
+    sam = initialise_sam()
+
+    create_mask_from_model(sam, image_file, input_points, input_labels, output_file)
+
+def initialise_sam():
     # SAM setup
     print("Loading SAM...")
     # sam_checkpoint = "checkpoints\\sam_vit_b_01ec64.pth" # For base model
@@ -57,8 +63,9 @@ def create_mask(image_file, input_points, input_labels):
 
     print("SAM loaded!")
 
+    return sam
 
-
+def create_mask_from_model(sam, image_file, input_points, input_labels, output_file=None):
     # Load image
     print("Loading image...")
     # image_file = "images\\snooker1.png"
@@ -111,7 +118,10 @@ def create_mask(image_file, input_points, input_labels):
         # plt.imshow(mask)
 
         # file = open("temp\\" + str(time.time()) + ".json", "w")
-        np.savetxt("temp\\" + str(time.time()), mask, fmt='%.0f')
+        if output_file is None:
+            output_file = "temp\\" + str(time.time())
+        
+        np.savetxt(output_file, mask, fmt='%.0f')
 
     print("SAM finished!")
 
@@ -136,8 +146,24 @@ def create_mask(image_file, input_points, input_labels):
 
 if __name__ == "__main__":
     image_file = "images\\snooker1.png"
-    
     input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
     input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
+    expected_corners = np.array([[494, 321], [1448, 321], [1618, 946], [305, 944]])
 
-    create_mask(image_file, input_points, input_labels)
+    mask_file = "./temp/mask.txt"
+    sam_evaluator = initialise_sam()
+    create_mask_from_model(sam_evaluator, image_file, input_points, input_labels, mask_file)
+    lines = find_edges.get_sam_lines(mask_file)
+    lines = lines[0]
+    corners = find_edges.get_rect_corners(lines)
+
+    # Draw image
+    img = cv2.imread(image_file)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    plt.figure()
+    plt.title(image_file)
+    a = plt.gca()
+    a.imshow(img)
+
+    print(corners)
+    plt.show()
