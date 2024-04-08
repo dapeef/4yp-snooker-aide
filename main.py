@@ -19,8 +19,8 @@ image_file = "./images/home_table3.jpg"
 image_file = "./images/terrace_webcam.jpg"
 # image_file = "./images/terrace_laptop.jpg"
 image_file = "./images/terrace_phone.jpg"
-image_file = "./validation\supervised\set-2\s10+_horizontal\images\p15_jpg.rf.ee6a43fbae79cfa374e83110329bb374.jpg"
-image_file = "./validation\supervised\set-2\s10+_horizontal\images\p27+_jpg.rf.cd125a93197825dcbcef765bd3cfc4b3.jpg"
+# image_file = "./validation\supervised\set-2\s10+_horizontal\images\p15_jpg.rf.ee6a43fbae79cfa374e83110329bb374.jpg"
+# image_file = "./validation\supervised\set-2\s10+_horizontal\images\p27+_jpg.rf.cd125a93197825dcbcef765bd3cfc4b3.jpg"
 
 
 image = cv2.imread(image_file)
@@ -127,7 +127,7 @@ points = np.array([[0, height, 0], [width, height, 0], [width, 0, 0], [0, 0, 0]]
 # points = np.array([[0, 0, 0], [*table_size, 0], [*(table_size/2), 0]], dtype=np.float32)
 img_points, _ = cv2.projectPoints(points, rvec, tvec, mtx, dist_coeffs)
 # print(f"img_points: {img_points}")
-find_edges.plotPoints(img_points)
+# find_edges.plotPoints(img_points)
 
 img_points = corners
 world_points = find_edges.get_world_pos_from_perspective(img_points, mtx, rvec, tvec, 0)

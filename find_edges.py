@@ -348,7 +348,7 @@ def get_lines_from_pockets(image_file, pockets):
     
     # plt.figure("Lines from NN pockets")
     plt.figure()
-    plt.title("Lines from NN pockets")
+    # plt.title("Lines from NN pockets")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
     

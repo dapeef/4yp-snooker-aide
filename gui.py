@@ -318,7 +318,6 @@ class Ui(QMainWindow):
             pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
             corners = find_edges.get_rect_corners(pocket_lines)
 
-
             # Get homography between pixelspace and tablespace
             table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
             # print(f"Table size: {table_size}")

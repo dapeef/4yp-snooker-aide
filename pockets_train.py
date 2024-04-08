@@ -29,7 +29,7 @@ transform = A.Compose(
         A.augmentations.geometric.resize.Resize(width, height, cv2.INTER_AREA, always_apply=True, p=1),
         A.HorizontalFlip(0.5),
         # ToTensorV2 converts image to pytorch tensor without div by 255
-        ToTensorV2(p=1.0) 
+        ToTensorV2(p=1.0)
     ],
     bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']}
 )
