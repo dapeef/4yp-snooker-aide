@@ -632,7 +632,7 @@ def get_world_point(image_point, homography):
 
     return np.array([x_world, y_world])
 
-def find_balls(image_file):
+def find_balls(image_file, single_channel_method="val", blur_radius=None):
     # Read the image
     color_image = cv2.imread(image_file)
 
@@ -640,27 +640,48 @@ def find_balls(image_file):
     resize_factor = 1500 / max(color_image.shape)
     # color_image = cv2.resize(color_image, (0,0), fx=resize_factor, fy=resize_factor)
 
-    # Convert to HSV
-    hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
-
-    # Edge find using val
-    val_channel = hsv_image[:, :, 2]
-    blur_radius = 3
-    val_smooth = cv2.GaussianBlur(val_channel, (blur_radius, blur_radius), 0)
-    val_edges = cv2.Canny(val_channel, 100, 200)
-    # plt.figure()
-    # plt.imshow(val_edges)
-    # plt.figure()
-    # plt.imshow(val_smooth)
 
     # Define circle size based on image size
     circle_size = (int(9/resize_factor), int(25/resize_factor))
 
+    if blur_radius is None:
+        blur_radius = 3
+
     # print(circle_size)
+
+    if single_channel_method == "val":
+        # Convert to HSV
+        hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
+
+        # Edge find using val
+        val_channel = hsv_image[:, :, 2]
+        val_smooth = cv2.GaussianBlur(val_channel, (blur_radius, blur_radius), 0)
+        val_edges = cv2.Canny(val_channel, 100, 200)
+        # plt.figure()
+        # plt.imshow(val_edges)
+        # plt.figure()
+        # plt.imshow(val_smooth)
+
+        img = val_smooth
+    
+    elif single_channel_method == "greyscale":
+        # Convert to greyscale
+        grey_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+
+        # Edge find using val
+        grey_smooth = cv2.GaussianBlur(grey_image, (blur_radius, blur_radius), 0)
+        grey_edges = cv2.Canny(grey_image, 100, 200)
+        # plt.figure()
+        # plt.imshow(val_edges)
+        # plt.figure()
+        # plt.imshow(val_smooth)
+
+        img = grey_smooth
+
 
     # Find circles
     circles = cv2.HoughCircles(
-        val_smooth,
+        img,
         cv2.HOUGH_GRADIENT,
         dp=1,
         minDist=circle_size[0]*2,

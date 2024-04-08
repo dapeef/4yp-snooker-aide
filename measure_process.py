@@ -293,7 +293,7 @@ class Test:
         self.labels_folder = os.path.join(self.folder, "labels")
         self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
 
-    def test_ball_detection(self, method_name, show=False):
+    def test_ball_detection(self, method_name, show=False, blur_radius=None):
         # method_name values can be "hough", "hough_masked", "nn", "nn_masked"
 
         balls_evaluator_init_time_start = time.time()
@@ -352,6 +352,18 @@ class Test:
                 method_time = time.time() - method_time_start
                 method_time += mask_time
                 one_off_time = pockets_evaluator_init_time + method_time
+                
+            elif method_name == "hough_grey_masked":
+                method_time_start = time.time()
+                # print(f"Min table dims: {min_table_dims}")
+
+                # Evaluate ball positions using hough
+                detected_points = find_edges.find_balls(masked_image_file, single_channel_method="greyscale")
+                # print(f"ball positions: {detected_points}")
+
+                method_time = time.time() - method_time_start
+                method_time += mask_time
+                one_off_time = pockets_evaluator_init_time + method_time
 
             elif method_name == "nn":
                 method_time_start = time.time()
@@ -404,7 +416,17 @@ class Test:
         print("Total results:")
         self.result.print_metrics()
 
-        self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
+        if blur_radius is None:
+            method_file_name = method_name
+        
+        else:
+            method_file_name = f"{method_name}_rad_{blur_radius}"
+
+        save_file_name = os.path.join(self.folder, f"{method_file_name}_results.json")
+
+        self.result.save_to_file(save_file_name)
+
+        print(f"Just saved to {save_file_name}")
 
         return self.result
 
@@ -613,7 +635,7 @@ class Test:
 
 def test_all(process_name):
     if process_name == "detection":
-        method_names = ["hough", "hough_masked", "nn", "nn_masked"]
+        method_names = ["hough", "hough_masked", "hough_grey_masked", "nn", "nn_masked"]
     elif process_name == "projection":
         method_names = ["homography", "projection"]
 
@@ -652,6 +674,43 @@ def test_all(process_name):
             print("Total results:")
             set_result.print_metrics()
             set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
+
+def test_blur_radius():
+    method_name = "hough_masked"
+
+    blur_radii = [x for x in range(1, 22, 2)]
+
+    results = {x: [] for x in blur_radii}
+
+    for set_num in range(1, 6):
+        # Get names of folders in this set
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        entries = os.listdir(directory)
+        device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
+        for device_name in device_names:
+            for blur_radius in blur_radii:
+                print(f"\n\nTrying set {set_num} with device '{device_name}', method '{method_name}', blur radius {blur_radius}")
+
+                try:
+                    test = Test(set_num, device_name)
+                except Exception as e:
+                    print(e)
+                    continue
+                
+                try:
+                    results[blur_radius].append(test.test_ball_detection(method_name, blur_radius=blur_radius))
+                except Exception as e:
+                    print(f"Test failed: {e}")
+                    continue
+        
+        # Aggregate results
+        for blur_radius in blur_radii:
+            set_result = TestResults()
+            set_result.aggregate_results(results[blur_radius])
+            print("Total results:")
+            set_result.print_metrics()
+            set_result.save_to_file(os.path.join(directory, f"{method_name}_rad_{blur_radius}_results.json"))
 
 def test_corner_detection():
     method_names = ["sam", "nn_corner"]
@@ -714,6 +773,12 @@ def draw_detection_graph(metric_name):
             values[method_name].append(result[metric_name])
     
     draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
+
+def draw_hough_comparison_graph(metric_name):
+    method_names = ["hough_masked", "hough_grey_masked"]
+    method_display_names = ['Val from HSV', 'Greyscale']
+
+    draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
 
 def draw_projection_graph():
     method_names = ["homography", "projection"]
@@ -807,8 +872,8 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
 
 
 if __name__ == "__main__":
-    test = Test(2, "laptop_camera")
-    test.test_ball_detection(method_name="hough", show=True)
+    # test = Test(2, "s10+_horizontal")
+    # test.test_ball_detection(method_name="hough", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
@@ -816,11 +881,13 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_pocket_detection("nn_corner", show=True)
 
+    test_all("detection")
+    # test_blur_radius()
     # test_all("projection")
-    # test_all("detection")
     # test_corner_detection()
 
     # draw_detection_graph("f1_score")
+    # draw_hough_comparison_graph("f1_score")
     # draw_projection_graph()
     # draw_pocket_detection_graph("mean_error_normalised")
     # draw_pocket_detection_graph("eval_time")
