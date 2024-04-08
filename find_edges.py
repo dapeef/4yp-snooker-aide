@@ -267,6 +267,7 @@ def get_lines_from_pockets(image_file, pockets):
         y1 = pocket_points[i][1]
 
         vecs = []
+        vecs_destinations = []
 
         for j in range(0, len(pocket_points)):
             if i != j:
@@ -284,9 +285,13 @@ def get_lines_from_pockets(image_file, pockets):
                     dtheta_threshold = 10 # degrees
                     if dtheta > np.deg2rad(180-dtheta_threshold):
                         # These three points are nearly colinear, so either vec or vecs[k] is the vector to the middle
-                        side_pocket_idx.append(i)
+                        if np.linalg.norm(vec) < np.linalg.norm(vecs[k]):
+                            side_pocket_idx.append(i)
+                        else:
+                            side_pocket_idx.append(vecs_destinations[k])
 
                 vecs.append(vec)
+                vecs_destinations.append(i)
 
     # print(side_pocket_idx)
     
