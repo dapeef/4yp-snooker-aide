@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import cv2
 import time
 import find_edges
+import torch
 
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
@@ -54,9 +55,10 @@ def initialise_sam():
     print("Loading SAM...")
     # sam_checkpoint = "checkpoints\\sam_vit_b_01ec64.pth" # For base model
     # model_type = "vit_b" # For base model
-    sam_checkpoint = "checkpoints\\sam_vit_h_4b8939.pth" # For huge model
+    sam_checkpoint = "./checkpoints/sam_vit_h_4b8939.pth" # For huge model
     model_type = "vit_h" # For huge model
     device = "cpu" # "cuda" #if access to cuda -> torch.cuda.is_available()
+    # device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device)

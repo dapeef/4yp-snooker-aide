@@ -6,6 +6,7 @@ import find_edges
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.ticker import ScalarFormatter
 import json
 import nn_utils
 import time
@@ -24,8 +25,9 @@ METRIC_NAME_MAP = {
     "precision": "Precision",
     "recall": "Recall",
     "f1_score": "F1 score",
-    "eval_time": "Evaluation time",
-    "one_off_time": "One-off evaluation time"
+    "accuracy": "Accuracy",
+    "eval_time": "Evaluation time (secs)",
+    "one_off_time": "One-off evaluation time (secs)"
 }
 
 def get_closest_point(point_of_interest, points):
@@ -140,10 +142,12 @@ class TestResults:
         print(f"Precision: {self.precision}")
         print(f"Recall: {self.recall}")
         print(f"F1 score: {self.f1_score}")
+        print(f"Accuracy: {self.accuracy}")
         print(f"Evaluation time: {self.eval_time}")
         print(f"One off time: {self.one_off_time}")
 
     def pickle_metrics(self):
+        print(f"Accuracy: {self.accuracy}")
         return {
             "true_positives": self.true_positives,
             "false_positives": self.false_positives,
@@ -154,6 +158,7 @@ class TestResults:
             "precision": self.precision,
             "recall": self.recall,
             "f1_score": self.f1_score,
+            "accuracy": self.accuracy,
             "eval_time": self.eval_time,
             "one_off_time": self.one_off_time
         }
@@ -168,6 +173,7 @@ class TestResults:
         self.precision = pickle["precision"]
         self.recall = pickle["recall"]
         self.f1_score = pickle["f1_score"]
+        self.accuracy = pickle["accuracy"]
         self.eval_time = pickle["eval_time"]
         self.one_off_time = pickle["one_off_time"]
 
@@ -236,6 +242,7 @@ class TestResults:
         self.precision = self.calculate_precision()
         self.recall = self.calculate_recall()
         self.f1_score = self.calculate_f1_score()
+        self.accuracy = self.calculate_accuracy()
 
     def calculate_precision(self):
         if self.true_positives + self.false_positives == 0:
@@ -252,6 +259,11 @@ class TestResults:
             return 0
         return 2 * (self.precision * self.recall) / (self.precision + self.recall)
     
+    def calculate_accuracy(self):
+        if self.true_positives + self.false_positives + self.true_negatives + self.false_negatives == 0:
+            return 0
+        return 2 * (self.true_positives + self.true_negatives) / (self.true_positives + self.false_positives + self.true_negatives + self.false_negatives)
+    
     def aggregate_results(self, results):
         self.true_positives = 0
         self.false_positives = 0
@@ -267,17 +279,18 @@ class TestResults:
             self.false_positives += result.false_positives
             self.true_negatives += result.true_negatives
             self.false_negatives += result.false_negatives
+
             mean_errors.append(result.mean_error)
             mean_errors_normalised.append(result.mean_error_normalised)
             times.append(result.eval_time)
             one_off_times.append(result.one_off_time)
 
+        self.calculate_secondary_metrics()
+
         self.mean_error = self.mean_of_list(mean_errors)
         self.mean_error_normalised = self.mean_of_list(mean_errors_normalised)
         self.eval_time = self.mean_of_list(times)
         self.one_off_time = self.mean_of_list(one_off_times)
-
-        self.calculate_secondary_metrics()
 
 class Test:
     def __init__(self, set, device):
@@ -293,7 +306,7 @@ class Test:
         self.labels_folder = os.path.join(self.folder, "labels")
         self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
 
-    def test_ball_detection(self, method_name, show=False, blur_radius=None):
+    def test_ball_detection(self, method_name, show=False, blur_radius=None, hough_threshold=None):
         # method_name values can be "hough", "hough_masked", "nn", "nn_masked"
 
         balls_evaluator_init_time_start = time.time()
@@ -335,7 +348,7 @@ class Test:
                 # print(f"Min table dims: {min_table_dims}")
 
                 # Evaluate ball positions using hough
-                detected_points = find_edges.find_balls(image_file)
+                detected_points = find_edges.find_balls_hough(image_file)
                 # print(f"ball positions: {detected_points}")
 
                 method_time = time.time() - method_time_start
@@ -346,7 +359,8 @@ class Test:
                 # print(f"Min table dims: {min_table_dims}")
 
                 # Evaluate ball positions using hough
-                detected_points = find_edges.find_balls(masked_image_file)
+                detected_points = find_edges.find_balls_hough(masked_image_file, blur_radius=blur_radius, hough_threshold=hough_threshold)
+                    
                 # print(f"ball positions: {detected_points}")
 
                 method_time = time.time() - method_time_start
@@ -358,7 +372,7 @@ class Test:
                 # print(f"Min table dims: {min_table_dims}")
 
                 # Evaluate ball positions using hough
-                detected_points = find_edges.find_balls(masked_image_file, single_channel_method="greyscale")
+                detected_points = find_edges.find_balls_hough(masked_image_file, single_channel_method="greyscale")
                 # print(f"ball positions: {detected_points}")
 
                 method_time = time.time() - method_time_start
@@ -385,7 +399,7 @@ class Test:
                 # print(f"Min table dims: {min_table_dims}")
 
                 # Get detected ball positions
-                target = balls_eval_multiple.evaluate_from_evaluator(balls_evaluator, image_file)
+                target = balls_eval_multiple.evaluate_from_evaluator(balls_evaluator, masked_image_file)
                 target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
                 target = nn_utils.get_bbox_centers(target)
 
@@ -416,11 +430,14 @@ class Test:
         print("Total results:")
         self.result.print_metrics()
 
-        if blur_radius is None:
-            method_file_name = method_name
-        
-        else:
+        if not blur_radius is None:
             method_file_name = f"{method_name}_rad_{blur_radius}"
+
+        elif not hough_threshold is None:
+            method_file_name = f"{method_name}_thresh_{hough_threshold}"
+
+        else:
+            method_file_name = method_name
 
         save_file_name = os.path.join(self.folder, f"{method_file_name}_results.json")
 
@@ -490,9 +507,10 @@ class Test:
             img = cv2.imread(image_file)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             plt.figure()
-            plt.title(image_file)
+            # plt.title(image_file)
             a = plt.gca()
             a.imshow(img)
+            plt.axis('off')
 
             results.append(TestResults())
             results[i].calculate_initial_metrics(detected_points, expected_points, 1, match_radius)
@@ -556,7 +574,7 @@ class Test:
 
                 mask_file = os.path.join("./temp", f"{os.path.splitext(file)[0]}.txt")
 
-                image_file = "images\\snooker1.png"
+                image_file = "./images/snooker1.png"
                 input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
                 input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
                 expected_points = np.array([[494, 321], [1448, 321], [1618, 946], [305, 944]])
@@ -636,6 +654,7 @@ class Test:
 def test_all(process_name):
     if process_name == "detection":
         method_names = ["hough", "hough_masked", "hough_grey_masked", "nn", "nn_masked"]
+        # method_names = ["hough_masked", "hough_grey_masked"]
     elif process_name == "projection":
         method_names = ["homography", "projection"]
 
@@ -682,7 +701,7 @@ def test_blur_radius():
 
     results = {x: [] for x in blur_radii}
 
-    for set_num in range(1, 6):
+    for set_num in [2]: #range(1, 6):
         # Get names of folders in this set
         directory = os.path.join("./validation/supervised", f"set-{set_num}")
         entries = os.listdir(directory)
@@ -711,6 +730,39 @@ def test_blur_radius():
             print("Total results:")
             set_result.print_metrics()
             set_result.save_to_file(os.path.join(directory, f"{method_name}_rad_{blur_radius}_results.json"))
+
+def test_hough_threshold():
+    method_name = "hough_masked"
+
+    thresholds = [x for x in range(1, 31, 1)]
+
+    results = {x: [] for x in thresholds}
+
+    for set_num in [2]: #range(1, 6):
+        # Get names of folders in this set
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        entries = os.listdir(directory)
+        device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
+        for device_name in device_names:
+            for threshold in thresholds:
+                print(f"\n\nTrying set {set_num} with device '{device_name}', method '{method_name}', threshold {threshold}")
+
+                try:
+                    test = Test(set_num, device_name)
+                except Exception as e:
+                    print(e)
+                    continue
+                
+                results[threshold].append(test.test_ball_detection(method_name, hough_threshold=threshold))
+        
+        # Aggregate results
+        for threshold in thresholds:
+            set_result = TestResults()
+            set_result.aggregate_results(results[threshold])
+            print("Total results:")
+            set_result.print_metrics()
+            set_result.save_to_file(os.path.join(directory, f"{method_name}_thresh_{threshold}_results.json"))
 
 def test_corner_detection():
     method_names = ["sam", "nn_corner"]
@@ -770,13 +822,35 @@ def draw_detection_graph(metric_name):
             result_object = TestResults()
             result = result_object.load_from_file(file_name)
 
+            print(file_name, result)
+
             values[method_name].append(result[metric_name])
     
     draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
 
-def draw_hough_comparison_graph(metric_name):
+def draw_greyscale_comparison_graph(metric_name):
     method_names = ["hough_masked", "hough_grey_masked"]
     method_display_names = ['Val from HSV', 'Greyscale']
+
+    draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
+    
+def draw_blur_radius_graph(metric_name):
+    method_names = []
+    method_display_names = []
+
+    for i in [x for x in range(1, 22, 2)]:
+        method_names.append(f"hough_masked_rad_{i}")
+        method_display_names.append(f"{i}")
+
+    draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
+
+def draw_hough_threshold_graph(metric_name):
+    method_names = []
+    method_display_names = []
+
+    for i in [x for x in range(1, 31, 1)]:
+        method_names.append(f"hough_masked_thresh_{i}")
+        method_display_names.append(f"{i if i%2==0 else ' '*i}")
 
     draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
 
@@ -820,10 +894,11 @@ def draw_single_set_graph(method_names, method_display_names, metric_name, metri
         values.append(result[metric_name])
 
     # Create bar chart
+    plt.figure()
     plt.bar(method_display_names, values)
 
     # Add labels and title
-    plt.xlabel('Projection algorithm')
+    # plt.xlabel('Projection algorithm')
     plt.ylabel(metric_display_name)
 
     plt.show()
@@ -837,6 +912,12 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     #     'Other': [56, 78, 89, 90, 100],
     #     'poop': [1, 2, 3, 4, 5]
     # }
+
+    plt.figure()
+    
+    xfmt = ScalarFormatter(useMathText=True)
+    xfmt.set_powerlimits((-3,3))
+    plt.gca().yaxis.set_major_formatter(xfmt)
 
     # Set the width of the bars
     bar_width = 1/(len(bar_names) + 1)
@@ -862,18 +943,18 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     plt.xlabel('Test sets', fontweight='bold')
     plt.ylabel(y_axis_label, fontweight='bold')
     plt.xticks([r + bar_width*(len(bar_names)-1)/2 for r in range(len(group_names))], group_names)
-    # plt.title('Grouped Bar Chart Example')
 
     # Add legend
     plt.legend(loc="lower right")
 
     # Show the chart
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     # test = Test(2, "s10+_horizontal")
-    # test.test_ball_detection(method_name="hough", show=True)
+    # test.test_ball_detection(method_name="hough", show=False)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
@@ -881,13 +962,27 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_pocket_detection("nn_corner", show=True)
 
+    # test = Test(2, "s10+_horizontal")
+    # test.test_ball_detection("hough_masked", blur_radius=10, show=True)
+
     test_all("detection")
     # test_blur_radius()
+    # test_hough_threshold()
     # test_all("projection")
     # test_corner_detection()
 
+    elapsed_time = time.time() - start_time
+    print(f"Executed all tests in {elapsed_time} secs (={elapsed_time/60} mins)")
+
+    # draw_detection_graph("precision")
+    # draw_detection_graph("recall")
     # draw_detection_graph("f1_score")
-    # draw_hough_comparison_graph("f1_score")
+    # draw_detection_graph("accuracy")
+    # draw_detection_graph("mean_error_normalised")
+    # draw_detection_graph("eval_time")
+    # draw_greyscale_comparison_graph("f1_score")
+    # draw_blur_radius_graph("f1_score")
+    # draw_hough_threshold_graph("f1_score")
     # draw_projection_graph()
     # draw_pocket_detection_graph("mean_error_normalised")
     # draw_pocket_detection_graph("eval_time")

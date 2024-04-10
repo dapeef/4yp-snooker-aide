@@ -481,7 +481,7 @@ def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2):
         # evaluate on the test dataset
         engine.evaluate(model, data_loader_test, device=device)
 
-        print("Woo! Finished an epoch!\n\n\n")
+        print(f"Woo! Finished epoch {epoch}!\n\n\n")
 
 
 
@@ -712,21 +712,29 @@ def evaluate_item(model, item):
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+    # images = torch.tensor(np.array([image]), dtype=torch.float32)
     images = list(img.to(device) for img in [image])
+    # images.to(device)
     model.to(device)
 
     with torch.no_grad():
         pred = model(images)
 
-    # print(f"pred: {pred}")
 
     # filtered = filter_pockets(pred[0], confidence_threshold=.1)
     # print(f"filtered: {filtered}")
 
     # plot_result_img_bbox(image.permute(1, 2, 0), pred[0])
     # plot_result_img_bbox(image.permute(1, 2, 0), filtered)
+
+    pred = pred[0]
+
+    # Move data back onto the CPU for processing later
+    cpu_pred = {"boxes": pred["boxes"].cpu(),
+            "labels": pred['labels'].cpu(),
+            "scores": pred['scores'].cpu()}
     
-    return pred[0]
+    return cpu_pred
 
 def scale_boxes(target, image_res, model_res=[512, 512]):
     new_target = copy.deepcopy(target)
@@ -779,6 +787,13 @@ def rudimentary_classify_ball_color(rgb_img):
         "3": black_pixel_count, # 8
         "4": white_pixel_count # cue
     }
+
+    # Plot bar chart of result
+    
+    plt.figure()
+    plt.bar(["Red", "Yellow", "Black", "White"], color_counts.values())
+    plt.ylabel("Accumulator count")
+    plt.show()
     
     # Return the color with the maximum pixel count
     ball_color = max(color_counts, key=color_counts.get)
@@ -791,3 +806,8 @@ def rudimentary_classify_ball_color(rgb_img):
     # plt.show()
 
     return ball_color
+
+if __name__ == "__main__":
+    img = cv2.imread("images\yellow_ball.jpg")
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    rudimentary_classify_ball_color(img)

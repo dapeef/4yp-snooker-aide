@@ -19,6 +19,7 @@ image_file = "./images/home_table3.jpg"
 image_file = "./images/terrace_webcam.jpg"
 # image_file = "./images/terrace_laptop.jpg"
 image_file = "./images/terrace_phone.jpg"
+image_file_masked = "./temp\p25_jpg.rf.9627e784e810a4de1eb96393907f2cc4-masked.png" # Masked version of terrace_phone.jpg
 # image_file = "./validation\supervised\set-2\s10+_horizontal\images\p15_jpg.rf.ee6a43fbae79cfa374e83110329bb374.jpg"
 # image_file = "./validation\supervised\set-2\s10+_horizontal\images\p27+_jpg.rf.cd125a93197825dcbcef765bd3cfc4b3.jpg"
 
@@ -44,7 +45,7 @@ image = cv2.imread(image_file)
 pockets = pockets_eval.evaluate(image_file)
 # plt.show()
 
-
+image_file = image_file_masked
 
 # sam_lines, sam_mask = find_edges.get_sam_lines()
 # dilation_dist = 5
@@ -145,6 +146,8 @@ balls_homography = find_edges.get_balls_homography(homography, 44.45 - 52.5/2)
 
 
 # img_balls = find_edges.find_balls(image_file[:-4] + "-masked.png")
+img_balls = find_edges.find_balls_hough(image_file)
+# img_balls = find_edges.find_balls(image_file, single_channel_method="greyscale")
 img_balls = balls_eval_multiple.get_balls(image_file)["centers"]
 
 # print(f"Homography ball positions: {img_balls}")

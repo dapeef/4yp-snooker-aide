@@ -637,20 +637,21 @@ def get_world_point(image_point, homography):
 
     return np.array([x_world, y_world])
 
-def find_balls(image_file, single_channel_method="val", blur_radius=None):
+def find_balls_hough(image_file, single_channel_method="val", blur_radius=None, hough_threshold=None):
     # Read the image
-    color_image = cv2.imread(image_file)
+    color_image_unscaled = cv2.imread(image_file)
 
     # Resize image
-    resize_factor = 1500 / max(color_image.shape)
-    # color_image = cv2.resize(color_image, (0,0), fx=resize_factor, fy=resize_factor)
+    resize_factor = 1500 / max(color_image_unscaled.shape)
+    color_image = cv2.resize(color_image_unscaled, (0,0), fx=resize_factor, fy=resize_factor)
 
 
     # Define circle size based on image size
-    circle_size = (int(9/resize_factor), int(25/resize_factor))
+    # circle_size = (int(9/resize_factor), int(25/resize_factor))
+    circle_size = (9, 25)
 
     if blur_radius is None:
-        blur_radius = 3
+        blur_radius = 7
 
     # print(circle_size)
 
@@ -659,9 +660,14 @@ def find_balls(image_file, single_channel_method="val", blur_radius=None):
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
         # Edge find using val
-        val_channel = hsv_image[:, :, 2]
-        val_smooth = cv2.GaussianBlur(val_channel, (blur_radius, blur_radius), 0)
-        val_edges = cv2.Canny(val_channel, 100, 200)
+        val_image = hsv_image[:, :, 2]
+        
+        # plt.figure()
+        # plt.imshow(val_channel, cmap="gray")
+        # plt.axis("off")
+
+        val_smooth = cv2.GaussianBlur(val_image, (blur_radius, blur_radius), 0)
+        val_edges = cv2.Canny(val_image, 100, 200)
         # plt.figure()
         # plt.imshow(val_edges)
         # plt.figure()
@@ -672,6 +678,10 @@ def find_balls(image_file, single_channel_method="val", blur_radius=None):
     elif single_channel_method == "greyscale":
         # Convert to greyscale
         grey_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+        
+        # plt.figure()
+        # plt.imshow(grey_image, cmap="gray")
+        # plt.axis("off")
 
         # Edge find using val
         grey_smooth = cv2.GaussianBlur(grey_image, (blur_radius, blur_radius), 0)
@@ -683,6 +693,8 @@ def find_balls(image_file, single_channel_method="val", blur_radius=None):
 
         img = grey_smooth
 
+    if hough_threshold is None:
+        hough_threshold = 12
 
     # Find circles
     circles = cv2.HoughCircles(
@@ -690,17 +702,17 @@ def find_balls(image_file, single_channel_method="val", blur_radius=None):
         cv2.HOUGH_GRADIENT,
         dp=1,
         minDist=circle_size[0]*2,
-        param1=200,
-        param2=12,
+        param1=200, # Canny edge sensitivity
+        param2=hough_threshold, # Hough accumulator threshold
         minRadius=circle_size[0],
         maxRadius=circle_size[1]
     )
+    
+    # # Show smoothed image
+    # plt.figure()
+    # plt.imshow(img)
 
     
-    # plt.figure("Hough circle transform to find balls")
-    plt.figure()
-    plt.title("Hough circle transform to find balls")
-    plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
 
     if circles is not None:
         circles = np.uint16(np.around(circles))
@@ -712,15 +724,33 @@ def find_balls(image_file, single_channel_method="val", blur_radius=None):
         # print("Radii:")
         # print(radii)
 
-        # Display the image with detected circles
+        # # Plot
+        # # plt.figure("Hough circle transform to find balls")
+        # plt.figure()
+        # # plt.title("Hough circle transform to find balls")
+        # plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
+
+        # # Display the image with detected circles
+        # for i in range(len(centers)):
+        #     plt.gca().add_patch(plt.Circle((centers[i, 0], centers[i, 1]), radii[i], color='b', fill=False))
+        # # plt.show()
+        
+        real_circles = np.around(circles / resize_factor)
+        real_centers = np.around(centers / resize_factor)
+        real_radii = np.around(radii / resize_factor)
+
+        plt.figure()
+        plt.imshow(cv2.cvtColor(color_image_unscaled, cv2.COLOR_BGR2RGB))
+        
         for i in range(len(centers)):
-            plt.gca().add_patch(plt.Circle((centers[i, 0], centers[i, 1]), radii[i], color='b', fill=False))
-        # plt.show()
+            plt.gca().add_patch(plt.Circle((real_centers[i, 0], real_centers[i, 1]), real_radii[i], color='b', fill=False))
     else:
         print("No circles found.")
-        centers = []
+        real_centers = []
 
-    return np.array(centers)
+
+
+    return np.array(real_centers)
 
 def display_table(ball_centers, table_dims=[1854, 3683], ball_diameter=52.5, window_height=1000, title="Estimated ball positions"):
     # initialize our canvas as a 300x300 pixel image with 3 channels
