@@ -130,7 +130,7 @@ def rotate_points(file_path, points):
 
 class TestResults:
     def __init__(self):
-        pass
+        self.img_count = 1
 
     def print_metrics(self):
         print(f"True positives: {self.true_positives}")
@@ -145,9 +145,9 @@ class TestResults:
         print(f"Accuracy: {self.accuracy}")
         print(f"Evaluation time: {self.eval_time}")
         print(f"One off time: {self.one_off_time}")
+        print(f"Image count: {self.img_count}")
 
     def pickle_metrics(self):
-        print(f"Accuracy: {self.accuracy}")
         return {
             "true_positives": self.true_positives,
             "false_positives": self.false_positives,
@@ -160,7 +160,8 @@ class TestResults:
             "f1_score": self.f1_score,
             "accuracy": self.accuracy,
             "eval_time": self.eval_time,
-            "one_off_time": self.one_off_time
+            "one_off_time": self.one_off_time,
+            "img_count": self.img_count
         }
 
     def unpickle_metrics(self, pickle):
@@ -176,6 +177,7 @@ class TestResults:
         self.accuracy = pickle["accuracy"]
         self.eval_time = pickle["eval_time"]
         self.one_off_time = pickle["one_off_time"]
+        self.img_count = pickle["img_count"]
 
     def save_to_file(self, file_name):
         with open(file_name, 'w') as json_file:
@@ -262,7 +264,7 @@ class TestResults:
     def calculate_accuracy(self):
         if self.true_positives + self.false_positives + self.true_negatives + self.false_negatives == 0:
             return 0
-        return 2 * (self.true_positives + self.true_negatives) / (self.true_positives + self.false_positives + self.true_negatives + self.false_negatives)
+        return (self.true_positives + self.true_negatives) / (self.true_positives + self.false_positives + self.true_negatives + self.false_negatives)
     
     def aggregate_results(self, results):
         self.true_positives = 0
@@ -273,6 +275,7 @@ class TestResults:
         mean_errors_normalised = []
         times = []
         one_off_times = []
+        self.img_count = 0
 
         for result in results:
             self.true_positives += result.true_positives
@@ -284,6 +287,8 @@ class TestResults:
             mean_errors_normalised.append(result.mean_error_normalised)
             times.append(result.eval_time)
             one_off_times.append(result.one_off_time)
+
+            self.img_count += result.img_count
 
         self.calculate_secondary_metrics()
 
@@ -421,14 +426,16 @@ class Test:
             results[i].calculate_secondary_metrics()
             results[i].eval_time = method_time
             results[i].one_off_time = one_off_time
-            results[i].print_metrics()
+            if show:
+                results[i].print_metrics()
 
             self.draw(detected_points, expected_points, image_file=image_file, match_radius=match_radius, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
-        print("Total results:")
-        self.result.print_metrics()
+        if show:
+            print("Total results:")
+            self.result.print_metrics()
 
         if not blur_radius is None:
             method_file_name = f"{method_name}_rad_{blur_radius}"
@@ -513,11 +520,12 @@ class Test:
             plt.axis('off')
 
             results.append(TestResults())
-            results[i].calculate_initial_metrics(detected_points, expected_points, 1, match_radius)
+            results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
             results[i].calculate_secondary_metrics()
             results[i].eval_time = method_time
             results[i].one_off_time = one_off_time
-            results[i].print_metrics()
+            if show:
+                results[i].print_metrics()
 
             if results[i].false_positives != 0 or \
                    results[i].true_negatives != 0 or \
@@ -528,8 +536,9 @@ class Test:
 
         self.result = TestResults()
         self.result.aggregate_results(results)
-        print("Total results:")
-        self.result.print_metrics()
+        if show:
+            print("Total results:")
+            self.result.print_metrics()
 
         self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
 
@@ -605,20 +614,27 @@ class Test:
             results[i].calculate_secondary_metrics()
             results[i].eval_time = method_time
             results[i].one_off_time = one_off_time
-            results[i].print_metrics()
+            if show:
+                results[i].print_metrics()
 
             self.draw(detected_points, expected_points, image_file=image_file, match_radius=match_radius, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
-        print("Total results:")
-        self.result.print_metrics()
+        if show:
+            print("Total results:")
+            self.result.print_metrics()
 
         self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
 
         return self.result
 
     def draw(self, detected_points, expected_points, image_file=None, image_size=None, match_radius=0, show=False):
+        # print(f"detected_points = {list(detected_points)}")
+        # print(f"expected_points = {list(expected_points)}")
+        # print(f"image_file = {image_file}")
+        # print(f"match_radius = {match_radius}")
+
         plt.figure()
 
         if not image_file is None:
@@ -635,16 +651,18 @@ class Test:
         else:
             raise Exception("Neither image_file nor image_size given")
         
+
         ax = plt.gca()
 
         for point in detected_points:
             # cv2.drawMarker(img, point, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
             plt.plot(*point, marker="x", markersize=10, color="b")
         for point in expected_points:
+            color = (0, 1, 0)
             # cv2.drawMarker(img, point, (0, 255, 0), cv2.MARKER_CROSS, 20, 2)
-            plt.plot(*point, marker="x", markersize=10, color="g")
+            plt.plot(*point, marker="x", markersize=10, color=color)
             # Draw a circle the size of match_radius
-            circle = patches.Circle(point, match_radius, edgecolor='g', facecolor='none')
+            circle = patches.Circle(point, match_radius, edgecolor=color, facecolor='none')
             ax.add_patch(circle)
 
         if show:
@@ -782,7 +800,7 @@ def test_corner_detection():
 
     # nn
     for device_name in device_names:
-        method_name = "nn"
+        method_name = "nn_corner"
         
         print(f"\n\nTrying set {set_num} with device '{device_name}' and method '{method_name}'")
 
@@ -792,11 +810,7 @@ def test_corner_detection():
             print(e)
             continue
 
-        try:
-            results[method_name].append(test.test_pocket_detection(method_name))
-        except Exception as e:
-            print(f"Test failed: {e}")
-            continue
+        results["nn_corner"].append(test.test_pocket_detection(method_name))
 
     # Aggregate results
     for method_name in method_names:
@@ -821,8 +835,6 @@ def draw_detection_graph(metric_name):
 
             result_object = TestResults()
             result = result_object.load_from_file(file_name)
-
-            print(file_name, result)
 
             values[method_name].append(result[metric_name])
     
@@ -854,17 +866,19 @@ def draw_hough_threshold_graph(metric_name):
 
     draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
 
-def draw_projection_graph():
+def draw_projection_graphs():
     method_names = ["homography", "projection"]
-    method_display_names = ['Homography', 'Projection']
+    method_display_names = ['Homography', 'Pose estimation']
 
-    draw_single_set_graph(method_names, method_display_names, "mean_error", "Mean error", set_num=2)
+    draw_single_set_graph(method_names, method_display_names, "mean_error", "Mean error (metres)", set_num=2)
+    draw_single_set_graph(method_names, method_display_names, "mean_error_normalised", "Normalised mean error (metres)", set_num=2)
+    draw_single_set_graph(method_names, method_display_names, "eval_time", "Evaluation time for\n16 balls (secs)", set_num=2)
 
 def draw_pocket_detection_graph(metric_name, set_num=2):
     method_names = ["sam", "nn_corner"]
     method_display_names = ['MetaAI\'s SAM', 'NN']
 
-    draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=2)
+    draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=set_num)
 
     # values = {x: [] for x in metric_names}
 
@@ -879,6 +893,15 @@ def draw_pocket_detection_graph(metric_name, set_num=2):
     #     values[metric_name].append(result[metric_name])
     
     # draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
+
+def draw_detection_demo():
+    detected_points = [[2806, 524], [2596, 648], [1661.8370, 654.5792], [2625.1411, 936.1063], [1958.2749, 661.2714], [2208.2310, 1300.3232], [2020.2266, 478.0728], [2271.5137, 670.5620], [2243.7183, 926.1321], [1517.1267, 901.9069], [1765.8833, 1283.6376], [2557.2925, 487.5326], [2680.3542, 1315.9834], [1309.2239, 1268.2955], [2585.1072, 674.5402], [1758.8634, 473.5060], [1882.0923, 922.1781], [2967.4453, 197.1305], [2169.4390, 355.4602]]
+    expected_points = [[2282.07,  488.35], [1307.22, 1271.13], [2206.5 , 1304.28], [1516.22,  904.63], [1880.85,  920.35], [2677.22, 1322.83], [1957.15,  663.63], [1659.72,  656.13], [1763.72, 1286.13], [2621.72,  937.63], [2270.15,  673.2 ], [2581.37,  678.13], [2242.65,  928.63], [2558.35,  491.2 ], [2018.15,  480.7 ], [1756.22,  474.78]]
+    image_file = "./validation/supervised\set-2\s10+_horizontal\images\p25_jpg.rf.9627e784e810a4de1eb96393907f2cc4.jpg"
+    match_radius = 72.3590974610548
+
+    dummy_test = Test(2, "s10+_horizontal")
+    dummy_test.draw(detected_points, expected_points, image_file, match_radius=match_radius, show=True)
 
 
 def draw_single_set_graph(method_names, method_display_names, metric_name, metric_display_name, set_num=2):
@@ -895,6 +918,13 @@ def draw_single_set_graph(method_names, method_display_names, metric_name, metri
 
     # Create bar chart
     plt.figure()
+    
+    yfmt = ScalarFormatter(useMathText=True)
+    yfmt.set_powerlimits((-3,3))
+    plt.gca().yaxis.set_major_formatter(yfmt)
+
+    print(values)
+
     plt.bar(method_display_names, values)
 
     # Add labels and title
@@ -915,9 +945,9 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
 
     plt.figure()
     
-    xfmt = ScalarFormatter(useMathText=True)
-    xfmt.set_powerlimits((-3,3))
-    plt.gca().yaxis.set_major_formatter(xfmt)
+    yfmt = ScalarFormatter(useMathText=True)
+    yfmt.set_powerlimits((-3,3))
+    plt.gca().yaxis.set_major_formatter(yfmt)
 
     # Set the width of the bars
     bar_width = 1/(len(bar_names) + 1)
@@ -937,11 +967,11 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     for bars in bar_sets:
         for bar in bars:
             height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=6)
+            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.2g}", ha='center', va='bottom', fontsize=6)
 
     # Add labels and title
-    plt.xlabel('Test sets', fontweight='bold')
-    plt.ylabel(y_axis_label, fontweight='bold')
+    # plt.xlabel('Test sets', fontweight='bold')
+    plt.ylabel(y_axis_label) #, fontweight='bold')
     plt.xticks([r + bar_width*(len(bar_names)-1)/2 for r in range(len(group_names))], group_names)
 
     # Add legend
@@ -954,7 +984,7 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
 if __name__ == "__main__":
     start_time = time.time()
     # test = Test(2, "s10+_horizontal")
-    # test.test_ball_detection(method_name="hough", show=False)
+    # test.test_ball_detection(method_name="nn", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
@@ -965,27 +995,28 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_ball_detection("hough_masked", blur_radius=10, show=True)
 
-    test_all("detection")
+    # test_all("detection")
     # test_blur_radius()
     # test_hough_threshold()
     # test_all("projection")
-    # test_corner_detection()
+    test_corner_detection()
 
     elapsed_time = time.time() - start_time
     print(f"Executed all tests in {elapsed_time} secs (={elapsed_time/60} mins)")
 
     # draw_detection_graph("precision")
     # draw_detection_graph("recall")
-    # draw_detection_graph("f1_score")
     # draw_detection_graph("accuracy")
+    # draw_detection_graph("f1_score")
     # draw_detection_graph("mean_error_normalised")
     # draw_detection_graph("eval_time")
     # draw_greyscale_comparison_graph("f1_score")
     # draw_blur_radius_graph("f1_score")
     # draw_hough_threshold_graph("f1_score")
-    # draw_projection_graph()
+    # draw_projection_graphs()
     # draw_pocket_detection_graph("mean_error_normalised")
     # draw_pocket_detection_graph("eval_time")
     # draw_pocket_detection_graph("one_off_time")
+    # draw_detection_demo()
 
     # plt.show()
