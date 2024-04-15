@@ -11,7 +11,8 @@ import json
 import nn_utils
 import time
 import sam
-
+import pooltool_test as pt_utils
+import pooltool as pt
 
 TABLE_SIZE = np.array([0.903, 1.676]) # English 8 ball
 SET_NAMES = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
@@ -20,8 +21,12 @@ METRIC_NAME_MAP = {
     "false_positives": "False positives",
     "true_negatives": "True negatives",
     "false_negatives": "False negatives",
-    "mean_error": "Absolute mean error",
+    "mean_error": "Absolute mean error", # (mm)",
     "mean_error_normalised": "Normalised mean error",
+    "max_error": "Absolute max error",
+    "max_error_normalised": "Normalised max error",
+    "error": "Error (mm)",
+    "error_normalised": "Normalised error",
     "precision": "Precision",
     "recall": "Recall",
     "f1_score": "F1 score",
@@ -101,6 +106,7 @@ def rotate_points(file_path, points):
     rotation_symbol = file_path[3]
     
     new_points = []
+    rotation_type = None
 
     for point in points:
         if rotation_symbol == "_" or rotation_symbol == ".":
@@ -125,6 +131,9 @@ def rotate_points(file_path, points):
             new_point = np.array([point[1], TABLE_SIZE[0] - point[0]])
             new_points.append(new_point)
 
+    if rotation_type is None:
+        new_points = points
+
     return np.array(new_points), rotation_type
 
 
@@ -139,6 +148,8 @@ class TestResults:
         print(f"False negatives: {self.false_negatives}")
         print(f"Mean error: {self.mean_error}")
         print(f"Mean error normalised: {self.mean_error_normalised}")
+        print(f"Max error: {self.max_error}")
+        print(f"Max error normalised: {self.max_error_normalised}")
         print(f"Precision: {self.precision}")
         print(f"Recall: {self.recall}")
         print(f"F1 score: {self.f1_score}")
@@ -155,6 +166,8 @@ class TestResults:
             "false_negatives": self.false_negatives,
             "mean_error": self.mean_error,
             "mean_error_normalised": self.mean_error_normalised,
+            "max_error": self.max_error,
+            "max_error_normalised": self.max_error_normalised,
             "precision": self.precision,
             "recall": self.recall,
             "f1_score": self.f1_score,
@@ -171,6 +184,8 @@ class TestResults:
         self.false_negatives = pickle["false_negatives"]
         self.mean_error = pickle["mean_error"]
         self.mean_error_normalised = pickle["mean_error_normalised"]
+        self.max_error = pickle["max_error"]
+        self.max_error_normalised = pickle["max_error_normalised"]
         self.precision = pickle["precision"]
         self.recall = pickle["recall"]
         self.f1_score = pickle["f1_score"]
@@ -208,8 +223,6 @@ class TestResults:
         detected_matched = [False] * len(self.detected_points)
 
         for i, expected_point in enumerate(self.expected_points):
-            found_match = False
-
             min_distance = np.inf
 
             for j, detected_point in enumerate(self.detected_points):
@@ -239,6 +252,8 @@ class TestResults:
         # Calculate mean error
         self.mean_error = self.mean_of_list(error_distances)
         self.mean_error_normalised = self.mean_error / normalisation
+        self.max_error = max(error_distances)
+        self.max_error_normalised = self.max_error / normalisation
 
     def calculate_secondary_metrics(self):
         self.precision = self.calculate_precision()
@@ -273,6 +288,8 @@ class TestResults:
         self.false_negatives = 0
         mean_errors = []
         mean_errors_normalised = []
+        max_errors = []
+        max_errors_normalised = []
         times = []
         one_off_times = []
         self.img_count = 0
@@ -285,6 +302,8 @@ class TestResults:
 
             mean_errors.append(result.mean_error)
             mean_errors_normalised.append(result.mean_error_normalised)
+            max_errors.append(result.max_error)
+            max_errors_normalised.append(result.max_error_normalised)
             times.append(result.eval_time)
             one_off_times.append(result.one_off_time)
 
@@ -294,6 +313,8 @@ class TestResults:
 
         self.mean_error = self.mean_of_list(mean_errors)
         self.mean_error_normalised = self.mean_of_list(mean_errors_normalised)
+        self.max_error = max(max_errors)
+        self.max_error_normalised = max(max_errors_normalised)
         self.eval_time = self.mean_of_list(times)
         self.one_off_time = self.mean_of_list(one_off_times)
 
@@ -310,6 +331,7 @@ class Test:
         self.images_folder = os.path.join(self.folder, "images")
         self.labels_folder = os.path.join(self.folder, "labels")
         self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
+        self.sam_labels_folder = os.path.join(self.folder, "sam_labels")
 
     def test_ball_detection(self, method_name, show=False, blur_radius=None, hough_threshold=None):
         # method_name values can be "hough", "hough_masked", "nn", "nn_masked"
@@ -562,10 +584,10 @@ class Test:
         for i, file in enumerate(os.listdir(self.images_folder)):
             image_file = os.path.join(self.images_folder, file)
             corner_label_file = os.path.join(self.corner_labels_folder, f"{os.path.splitext(file)[0]}.txt")
+            sam_label_file = os.path.join(self.sam_labels_folder, f"{os.path.splitext(file)[0]}.json")
 
             print(f"\nAnalysing image: {image_file} with detection method: {method_name}")
             
-            corner_label_file = os.path.join(self.corner_labels_folder, f"{os.path.splitext(file)[0]}.txt")
             expected_points = load_points_from_corner_file(corner_label_file)
 
             # Get pocket locations, and min_table_dim
@@ -581,12 +603,18 @@ class Test:
                 method_time_start = time.time()
                 # print(f"Min table dims: {min_table_dims}")
 
-                mask_file = os.path.join("./temp", f"{os.path.splitext(file)[0]}.txt")
+                # image_file = "./images/snooker1.png"
+                # input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
+                # input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
+                # expected_points = np.array([[494, 321], [1448, 321], [1618, 946], [305, 944]])
 
-                image_file = "./images/snooker1.png"
-                input_points = np.array([[600, 600], [1300, 600], [1625, 855]])
-                input_labels = np.array([1, 1, 0]) # 1=foreground, 0=background
-                expected_points = np.array([[494, 321], [1448, 321], [1618, 946], [305, 944]])
+                with open(sam_label_file, "r") as f:
+                    sam_labels = json.load(f)
+
+                input_points = np.array(sam_labels["input_points"])
+                input_labels = np.array(sam_labels["input_labels"])
+
+                mask_file = os.path.join("./temp", f"{os.path.splitext(file)[0]}-mask.txt")
 
                 sam.create_mask_from_model(sam_evaluator, image_file, input_points, input_labels, mask_file)
                 lines = find_edges.get_sam_lines(mask_file)
@@ -607,7 +635,7 @@ class Test:
                 method_time = time.time() - method_time_start
                 one_off_time = method_time + pockets_evaluator_init_time
 
-            match_radius = min_table_dims/2
+            match_radius = min_table_dims/5
 
             results.append(TestResults())
             results[i].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
@@ -626,6 +654,240 @@ class Test:
             self.result.print_metrics()
 
         self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
+
+        return self.result
+
+    def test_end_to_end_detection(self, match_radius=None, show=False):
+        def get_pockets(pockets_evaluator, image_file):
+            pockets_evaluator.create_dataset(image_file)
+            target = pockets_evaluator.get_boxes(0)
+
+            target = nn_utils.filter_boxes(target, confidence_threshold=.1)
+            target = nn_utils.get_bbox_centers(target)
+
+            return target
+        
+        def get_balls(balls_evaluator, image_file):
+            balls_evaluator.create_dataset(image_file)
+            target = balls_evaluator.get_boxes(0)
+
+            target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
+            target = nn_utils.get_bbox_centers(target)
+
+            return target
+
+        def circle_line_overlap_vector(circle_center, radius, p1, p2):
+            """Calculate the vector to move the circle to resolve overlap with the line segment."""
+            p1 = p1[:2]
+            p2 = p2[:2]
+
+            # Vector representing the line segment
+            line_vector = p2 - p1
+            # Vector from the start of the line segment to the center of the circle
+            start_to_center = circle_center - p1
+            # Projection of start_to_center onto the line_vector
+            projection = np.dot(start_to_center, line_vector) / np.dot(line_vector, line_vector)
+
+            if projection < 0:
+                closest_point = p1
+            elif projection > 1:
+                closest_point = p2
+            else:
+                closest_point = p1 + projection * line_vector
+            
+            # Vector from the center of the circle to the closest point on the line segment
+            closest_vector = circle_center - closest_point
+
+            dist = np.linalg.norm(closest_vector)
+
+
+            if dist > radius:
+                return np.array([0, 0])
+            
+            else:
+                # Calculate the vector to move the circle
+                move_vector = closest_vector/dist * (radius - dist)
+                
+                return move_vector
+        
+        def circle_circle_overlap_vector(c1, r1, c2, r2):
+            # Work out how far to move c1 to make it fit next to c2
+            c2_c1 = c1 - c2
+            dist = np.linalg.norm(c2_c1)
+
+            if dist > r1 + r2:
+                return np.array([0, 0])
+            else:
+                return c2_c1/dist * (r1 + r2 - dist)
+
+        balls_evaluator_init_time_start = time.time()
+        balls_evaluator = nn_utils.EvaluateNet("./checkpoints/balls_model_multiple.pth", 20)
+        balls_evaluator_init_time = time.time() - balls_evaluator_init_time_start
+
+        pockets_evaluator_init_time_start = time.time()
+        pockets_evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
+        pockets_evaluator_init_time = time.time() - pockets_evaluator_init_time_start
+
+        table = pt.Table.from_table_specs(pt_utils.english_8_ball_table_specs())
+        cue = pt.Cue(cue_ball_id="cue")
+        shot = pt.System(table=table, balls={}, cue=cue)
+
+        cushion_height = 0.037
+
+        min_table_dims = TABLE_SIZE[0]
+
+        results = []
+        method_time = 0
+        one_off_time = 0
+
+        for i, file in enumerate(os.listdir(self.images_folder)):
+            image_file = os.path.join(self.images_folder, file)
+            expected_output_file = os.path.join(self.validation_folder, f"set-{self.set}", "real-positions.txt")
+            original_expected_points = load_points_from_real_file(expected_output_file)
+            expected_points, rot_type = rotate_points(image_file, original_expected_points)
+            detected_points = []
+
+            if rot_type != 0:
+                print(f"!!! Rejecting file {file} because it has bad orientation")
+                # time.sleep(5)
+            else:
+                print(f"\nAnalysing image: {image_file} end-to-end")
+
+                # Evaluate NNs
+                pockets_eval_start = time.time()
+                pockets_target = get_pockets(pockets_evaluator, image_file)
+                balls_eval_start = time.time()
+                balls_target = get_balls(balls_evaluator, image_file)
+                one_off_time += time.time() - pockets_eval_start
+                method_time += time.time() - balls_eval_start
+                
+                main_method_start = time.time()
+                # Get corner points from pocket output
+                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
+                corners = find_edges.get_rect_corners(pocket_lines)
+
+                # Get homography between pixelspace and tablespace
+                cushion_thickness_real = pt_utils.english_8_ball_table_specs().cushion_width
+
+                table_size = [shot.table.w + 2*cushion_thickness_real, shot.table.l + 2*cushion_thickness_real]
+                # print(f"Table size: {table_size}")
+
+                calibration_directory = "./calibration"
+                mtx = np.load(os.path.join(calibration_directory, self.device, "intrinsic_matrix.npy"))
+                dist_coeffs = np.load(os.path.join(calibration_directory, self.device, "distortion.npy"))
+                rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx, dist_coeffs)
+
+
+                # Process all balls
+                # Inflate ball radius slightly so it moves the balls far enough away from cushions
+                simulation_nudge = 0.0001
+                ball_radius = pt_utils.english_8_ball_ball_params().R + simulation_nudge
+
+                balls = {}
+
+                red_id = 1
+                yellow_id = 9
+
+                for j in range(len(balls_target["labels"])):
+                    label = balls_target["labels"][j]
+                    # ball_type = self.balls_class_conversion[label]
+                    img_center = balls_target["centers"][j]
+                    # real_center = find_edges.get_world_point(img_center, homography)
+                    real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(cushion_height - ball_radius))[0]
+
+                    real_center -= np.array([1, 1]) * cushion_thickness_real
+
+                    move_count = 1
+                    total_move_count = 0
+
+                    while move_count >= 1:
+                        move_count = 0
+
+                        # Jiggle position to remove ball-round_cushion overlaps
+                        for ball_id, ball in balls.items():
+                            vec = circle_circle_overlap_vector(real_center, ball_radius, ball.state.rvw[0][:2], ball.params.R)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
+
+                        # Jiggle position to remove ball-round_cushion overlaps
+                        for line_id, line_info in shot.table.cushion_segments.circular.items():
+                            vec = circle_circle_overlap_vector(real_center, ball_radius, line_info.center[:2], line_info.radius)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
+
+                        # Jiggle position to remove ball-line_cushion overlaps
+                        for line_id, line_info in shot.table.cushion_segments.linear.items():
+                            vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
+
+                        # Jiggle position to ensure balls don't fall straight into pockets
+                        for pocket_id, pocket_info in shot.table.pockets.items():
+                            vec = circle_circle_overlap_vector(real_center, ball_radius, pocket_info.center[:2], pocket_info.radius-ball_radius+simulation_nudge)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
+                        
+                        total_move_count += move_count
+
+                        if total_move_count >= 1000:
+                            # self.display_info(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
+                            break
+
+                    if real_center[0] >= 0 and \
+                    real_center[1] >= 0 and \
+                    real_center[0] <= table_size[0] and \
+                    real_center[1] <= table_size[1]:
+                        # #TODO add catches for too many cue balls etc
+                        # if ball_type == "cue":
+                        #     ball_id = "cue"
+                        # elif ball_type == "red":
+                        #     ball_id = red_id
+                        #     red_id += 1
+                        # elif ball_type == "yellow":
+                        #     ball_id = yellow_id
+                        #     yellow_id += 1
+                        # elif ball_type == "8":
+                        #     ball_id = 8
+
+                        # ball_id = str(ball_id)
+
+                        # balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
+
+                        detected_points.append((real_center + np.array([1, 1]) * cushion_thickness_real))
+
+                method_time += time.time() - main_method_start
+                one_off_time += time.time() - main_method_start
+
+                if match_radius is None:
+                    match_radius = 50.8 / 1000 # 1 ball diameter
+                    match_radius = 0.13 # Ball separation distance
+
+                self.draw(detected_points, expected_points, image_size=TABLE_SIZE, match_radius=match_radius, show=show)
+
+                results.append(TestResults())
+                results[-1].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
+                results[-1].calculate_secondary_metrics()
+                results[-1].eval_time = method_time
+                results[-1].one_off_time = one_off_time
+                if show:
+                    results[-1].print_metrics()
+
+
+        self.result = TestResults()
+        self.result.aggregate_results(results)
+        if show:
+            print("Total results:")
+            self.result.print_metrics()
+
+        save_file_name = os.path.join(self.folder, f"end_to_end_results.json")
+
+        self.result.save_to_file(save_file_name)
+
+        print(f"Just saved to {save_file_name}")
 
         return self.result
 
@@ -782,7 +1044,7 @@ def test_hough_threshold():
             set_result.print_metrics()
             set_result.save_to_file(os.path.join(directory, f"{method_name}_thresh_{threshold}_results.json"))
 
-def test_corner_detection():
+def test_corner_detection(show=False):
     method_names = ["sam", "nn_corner"]
 
     results = {x: [] for x in method_names}
@@ -796,7 +1058,7 @@ def test_corner_detection():
 
     # SAM
     test = Test(set_num, "laptop_camera")
-    results["sam"].append(test.test_pocket_detection("sam"))
+    results["sam"].append(test.test_pocket_detection("sam", show=show))
 
     # nn
     for device_name in device_names:
@@ -819,6 +1081,35 @@ def test_corner_detection():
         print("Total results:")
         set_result.print_metrics()
         set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
+
+def test_end_to_end():
+    match_radii = [.1, .2, .1 , .1, .1]
+
+    results = []
+
+    for set_num in range(1, 6):
+        # Get names of folders in this set
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        entries = os.listdir(directory)
+        device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
+        for device_name in device_names:
+            print(f"\n\nTrying set {set_num} with device '{device_name}' - end-to-end")
+
+            try:
+                test = Test(set_num, device_name)
+            except Exception as e:
+                print(e)
+                continue
+
+            results.append(test.test_end_to_end_detection(match_radius=match_radii[set_num - 1]))
+        
+        # Aggregate results
+        set_result = TestResults()
+        set_result.aggregate_results(results)
+        print("Total results:")
+        set_result.print_metrics()
+        set_result.save_to_file(os.path.join(directory, f"end_to_end_results.json"))
 
 
 def draw_detection_graph(metric_name):
@@ -876,7 +1167,7 @@ def draw_projection_graphs():
 
 def draw_pocket_detection_graph(metric_name, set_num=2):
     method_names = ["sam", "nn_corner"]
-    method_display_names = ['MetaAI\'s SAM', 'NN']
+    method_display_names = ['MetaAI\'s SAM', 'Custom neural network']
 
     draw_single_set_graph(method_names, method_display_names, metric_name, METRIC_NAME_MAP[metric_name], set_num=set_num)
 
@@ -893,6 +1184,35 @@ def draw_pocket_detection_graph(metric_name, set_num=2):
     #     values[metric_name].append(result[metric_name])
     
     # draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
+
+def draw_end_to_end_graph(metric_name):
+    if metric_name == "error_normalised":
+        metric_names = ["mean_error_normalised", "max_error_normalised"]
+        metric_display_names = ['Normalised\nmean error', 'Normalised\nmax error']
+    elif metric_name == "error":
+        metric_names = ["mean_error", "max_error"]
+        metric_display_names = ['Mean error', 'Max error']
+    elif type(metric_name) is str:
+        metric_names = [metric_name]
+        metric_display_names = [METRIC_NAME_MAP[metric_name]]
+    else:
+        metric_names = metric_name
+        metric_display_names = [METRIC_NAME_MAP[name] for name in metric_name]
+
+    values = {x: [] for x in metric_names}
+
+    for set_num in range(1, 6):
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        
+        file_name = os.path.join(directory, f"end_to_end_results.json")
+
+        result_object = TestResults()
+        result = result_object.load_from_file(file_name)
+
+        for _metric_name in metric_names:
+            values[_metric_name].append(result[_metric_name]) # *1000 to convert from m to mm
+    
+    draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, METRIC_NAME_MAP[metric_name], "lower right")
 
 def draw_detection_demo():
     detected_points = [[2806, 524], [2596, 648], [1661.8370, 654.5792], [2625.1411, 936.1063], [1958.2749, 661.2714], [2208.2310, 1300.3232], [2020.2266, 478.0728], [2271.5137, 670.5620], [2243.7183, 926.1321], [1517.1267, 901.9069], [1765.8833, 1283.6376], [2557.2925, 487.5326], [2680.3542, 1315.9834], [1309.2239, 1268.2955], [2585.1072, 674.5402], [1758.8634, 473.5060], [1882.0923, 922.1781], [2967.4453, 197.1305], [2169.4390, 355.4602]]
@@ -923,24 +1243,26 @@ def draw_single_set_graph(method_names, method_display_names, metric_name, metri
     yfmt.set_powerlimits((-3,3))
     plt.gca().yaxis.set_major_formatter(yfmt)
 
-    print(values)
+    bars = plt.bar(method_display_names, values)
 
-    plt.bar(method_display_names, values)
+    # Add text
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=8)
 
     # Add labels and title
     # plt.xlabel('Projection algorithm')
     plt.ylabel(metric_display_name)
 
-    plt.show()
+    # plt.show()
 
-def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_axis_label):
+def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_axis_label="", legend_location="lower right"):
     # Sample data
     # values = {
     #     'Hough': [23, 34, 45, 55, 65],
     #     'NN': [45, 56, 67, 70, 80],
     #     'NN masked': [10, 20, 30, 40, 50],
     #     'Other': [56, 78, 89, 90, 100],
-    #     'poop': [1, 2, 3, 4, 5]
     # }
 
     plt.figure()
@@ -967,7 +1289,7 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     for bars in bar_sets:
         for bar in bars:
             height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.2g}", ha='center', va='bottom', fontsize=6)
+            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=6)
 
     # Add labels and title
     # plt.xlabel('Test sets', fontweight='bold')
@@ -975,7 +1297,8 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     plt.xticks([r + bar_width*(len(bar_names)-1)/2 for r in range(len(group_names))], group_names)
 
     # Add legend
-    plt.legend(loc="lower right")
+    if len(bar_names) != 1:
+        plt.legend(loc=legend_location)
 
     # Show the chart
     # plt.show()
@@ -983,8 +1306,8 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
 
 if __name__ == "__main__":
     start_time = time.time()
-    # test = Test(2, "s10+_horizontal")
-    # test.test_ball_detection(method_name="nn", show=True)
+    # test = Test(2, "laptop_camera")
+    # test.test_ball_detection(method_name="hough", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
@@ -995,12 +1318,18 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_ball_detection("hough_masked", blur_radius=10, show=True)
 
+    # test = Test(4, "s10+_vertical")
+    # test.test_end_to_end_detection(match_radius=.1, show=True)
+
     # test_all("detection")
     # test_blur_radius()
     # test_hough_threshold()
     # test_all("projection")
-    test_corner_detection()
+    # test_corner_detection(show=True)
+    test_end_to_end()
+    test_end_to_end()
 
+    plt.close('all')
     elapsed_time = time.time() - start_time
     print(f"Executed all tests in {elapsed_time} secs (={elapsed_time/60} mins)")
 
@@ -1015,8 +1344,12 @@ if __name__ == "__main__":
     # draw_hough_threshold_graph("f1_score")
     # draw_projection_graphs()
     # draw_pocket_detection_graph("mean_error_normalised")
+    # draw_pocket_detection_graph("f1_score")
     # draw_pocket_detection_graph("eval_time")
     # draw_pocket_detection_graph("one_off_time")
+    draw_end_to_end_graph("mean_error")
+    draw_end_to_end_graph("f1_score")
+    draw_end_to_end_graph("eval_time")
     # draw_detection_demo()
 
-    # plt.show()
+    plt.show()

@@ -222,7 +222,7 @@ def get_sam_lines(mask_file=""):
 
     # plt.figure("SAM mask")
     plt.figure()
-    plt.title("SAM mask")
+    # plt.title("SAM mask")
     plt.imshow(mask)
     plotLinesPolar(lines, mask.shape)
     # plotLinesPolar(sorted_lines[:3], mask.shape, "red")
@@ -231,7 +231,7 @@ def get_sam_lines(mask_file=""):
 
     # plt.figure("Dilated SAM mask")
     plt.figure()
-    plt.title("Dilated SAM mask")
+    # plt.title("Dilated SAM mask")
     plt.imshow(dilated_mask)
     plotLinesPolar(lines, dilated_mask.shape)
 

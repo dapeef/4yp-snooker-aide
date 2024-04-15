@@ -113,7 +113,7 @@ def create_mask_from_model(sam, image_file, input_points, input_labels, output_f
         plt.imshow(image)
         show_mask(mask, plt.gca())
         show_points(input_points, input_labels, plt.gca())
-        plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
+        # plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
         plt.axis('on')
 
         # plt.figure()
