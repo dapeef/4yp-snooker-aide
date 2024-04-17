@@ -129,10 +129,17 @@
              <item>
               <widget class="QCheckBox" name="update_pockets_checkbox">
                <property name="text">
-                <string>Update pocket locations</string>
+                <string>Update pocket (Only disable if camera is static)</string>
                </property>
                <property name="checked">
                 <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="auto_refresh_checkbox">
+               <property name="text">
+                <string>Auto refresh on ball movement</string>
                </property>
               </widget>
              </item>

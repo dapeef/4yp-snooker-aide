@@ -77,7 +77,7 @@ def create_mask_from_model(sam, image_file, input_points, input_labels, output_f
     # Show image
     plt.figure(figsize=(10,10))
     plt.imshow(image)
-    plt.axis('on')
+    plt.axis('off')
     # plt.show()
 
     print("Image loaded!")

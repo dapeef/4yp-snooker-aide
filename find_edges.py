@@ -748,8 +748,6 @@ def find_balls_hough(image_file, single_channel_method="val", blur_radius=None, 
         print("No circles found.")
         real_centers = []
 
-
-
     return np.array(real_centers)
 
 def display_table(ball_centers, table_dims=[1854, 3683], ball_diameter=52.5, window_height=1000, title="Estimated ball positions"):
@@ -788,3 +786,133 @@ def display_table(ball_centers, table_dims=[1854, 3683], ball_diameter=52.5, win
     plt.figure()
     plt.title(title)
     plt.imshow(canvas)
+
+def create_ellipse_mask(image_shape):
+    """
+    Create a binary mask with an ellipse region.
+
+    Args:
+        image_shape: Tuple representing the shape (height, width) of the image.
+
+    Returns:
+        ellipse_mask: Binary mask with ellipse region (dtype: np.uint8).
+    """
+    # Create a blank mask with zeros
+    ellipse_mask = np.zeros(image_shape[:2], dtype=np.uint8)
+
+    # Calculate the center and axes of the ellipse
+    center = (image_shape[1] // 2, image_shape[0] // 2)  # (x, y) format
+    axes = (image_shape[1] // 2, image_shape[0] // 2)  # (major axis, minor axis)
+
+    # Draw the ellipse (fill it with white color)
+    cv2.ellipse(ellipse_mask, center, axes, 0, 0, 360, color=255, thickness=-1)
+
+    return ellipse_mask
+
+def pixel_difference(old_image, new_image, threshold=30, proportion_threshold=0.5, show=False):
+    def show_img(img):
+        fig = plt.figure()
+        fig.set_size_inches(2, 2)
+        plt.imshow(img, aspect='auto')
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        plt.axis('off')
+
+
+    """
+    Determine whether motion has occurred between two RGB images within an ellipse region.
+
+    Args:
+        old_image: numpy array representing the old image (RGB format).
+        new_image: numpy array representing the new image (RGB format).
+        threshold: Threshold value for considering a pixel as part of motion.
+        pixel_threshold: Proportion of pixels above which motion is considered to have occurred.
+
+    Returns:
+        has_motion: Boolean value indicating whether motion has occurred.
+    """
+    # Convert images to numpy arrays if not already in that format
+    old_image = np.array(old_image, dtype=np.int16)
+    new_image = np.array(new_image, dtype=np.int16)
+
+    # Compute the absolute difference between corresponding pixels
+    diff_image = old_image - new_image
+
+    # Calculate the size of the Gaussian kernel based on 1/4 of the smaller side of the image
+    smaller_side = min(old_image.shape[0], old_image.shape[1])
+    gaussian_kernel_size = max(3, smaller_side // 4)
+    if gaussian_kernel_size % 2 == 0:
+        gaussian_kernel_size += 1
+
+    # Apply Gaussian smoothing to the masked difference image
+    smoothed_diff_image = cv2.GaussianBlur(diff_image, (gaussian_kernel_size, gaussian_kernel_size), 0)
+
+    # Take the absolute value of the smoothed difference image
+    abs_smoothed_diff_image = np.abs(smoothed_diff_image)
+
+    # Convert the absolute difference image to grayscale by averaging RGB channels
+    diff_image_gray = np.mean(abs_smoothed_diff_image, axis=2)
+    
+    # Apply ellipse mask
+    ellipse_mask = create_ellipse_mask(old_image.shape[:2])
+    diff_image_gray_masked = cv2.bitwise_and(diff_image_gray, diff_image_gray, mask=ellipse_mask)
+
+    # Apply threshold to identify motion
+    motion_mask = diff_image_gray_masked > threshold
+
+    # Count the number of pixels above the threshold within the ellipse region
+    num_pixels_above_threshold = np.count_nonzero(motion_mask)
+
+    # Calculate the proportion of pixels above the threshold relative to the area of the ellipse
+    ellipse_area = np.count_nonzero(ellipse_mask)
+    pixel_proportion = num_pixels_above_threshold / ellipse_area
+
+    # Determine whether motion has occurred based on the pixel threshold
+    has_motion = pixel_proportion > proportion_threshold
+
+    if show:
+        print(pixel_proportion, has_motion)
+
+        show_img(old_image)
+        show_img(new_image)
+        show_img(ellipse_mask)
+        show_img(np.mean(np.abs(diff_image), axis=2)) # Raw diff
+        show_img(diff_image_gray)
+        show_img(diff_image_gray_masked)
+        show_img(motion_mask)
+
+    return has_motion
+
+def check_ball_movement(old_image, new_image, target, threshold=30, proportion_threshold=0.5, show=False):
+    for box in target['boxes']:
+        x_min, y_min, x_max, y_max = np.array(np.rint(box), dtype=np.int16)
+
+        old_sub_image = old_image[y_min:y_max, x_min:x_max]
+        new_sub_image = new_image[y_min:y_max, x_min:x_max]
+
+        if pixel_difference(old_sub_image, new_sub_image, threshold, proportion_threshold, show=False):
+            if show:
+                print("BALL HAS CHANGED")
+
+                plt.figure()
+                plt.imshow(old_sub_image)
+                plt.figure()
+                plt.imshow(new_sub_image)
+                plt.show()
+
+            return True
+    
+    return False
+
+
+if __name__ == "__main__":
+    # old_image = cv2.cvtColor(cv2.imread("./images/diff_old.jpg"), cv2.COLOR_BGR2RGB)
+    # new_image = cv2.cvtColor(cv2.imread("./images/diff_new.jpg"), cv2.COLOR_BGR2RGB)
+    # # new_image = cv2.cvtColor(cv2.imread("./images/diff_new2.jpg"), cv2.COLOR_BGR2RGB)
+    # pixel_difference(old_image, new_image)
+    # plt.show()
+
+    old_image = cv2.cvtColor(cv2.imread("./images/terrace_phone.jpg"), cv2.COLOR_BGR2RGB)
+    new_image = cv2.cvtColor(cv2.imread("./images/terrace.jpg"), cv2.COLOR_BGR2RGB)
+    target = {'boxes': [[1620.4912,  612.8253, 1703.1621,  696.4203], [2576.4312,  886.6342, 2673.8899,  985.4148], [1918.3392,  620.5417, 1998.0477,  701.9626], [2150.3320, 1243.5760, 2266.0259, 1357.1327], [1985.6053,  440.0798, 2054.6768,  516.1108], [2230.3787,  628.5780, 2312.5488,  712.5162], [2195.4463,  877.0612, 2292.1348,  974.8874], [1468.1367,  853.5551, 1566.0989,  950.1334], [1706.2831, 1225.9446, 1825.3719, 1341.2914], [2523.7449,  451.2814, 2590.8489,  523.3998], [2544.7012,  632.2858, 2626.9685,  713.6154], [2618.5410, 1258.1598, 2742.2588, 1373.9728], [1248.9678, 1212.1758, 1369.5040, 1324.3998], [1725.0883,  436.8719, 1792.7833,  509.9797], [2252.0110,  453.9048, 2312.5576,  521.5685], [1835.8574,  870.7050, 1928.5109,  973.4150], [2839.9385,   43.7762, 3095.5750,  350.3239], [2151.3774,  341.1837, 2187.4722,  370.1146]], 'labels': [18, 18, 17, 18, 18, 17, 18, 17, 18, 17, 17, 17, 17, 18, 15, 13, 17, 17], 'scores': [0.9978, 0.9976, 0.9972, 0.9970, 0.9968, 0.9967, 0.9965, 0.9964, 0.9962, 0.9959, 0.9957, 0.9955, 0.9950, 0.9936, 0.9904, 0.9687, 0.7291, 0.5751], 'centers': [[1661.8267, 654.6228], [2625.1606, 936.0245], [1958.1935, 661.2521], [2208.1790, 1300.3544], [2020.1411, 478.0953], [2271.4639, 670.5471], [2243.7905, 925.9742], [1517.1178, 901.8442], [1765.8275, 1283.6179], [2557.2969, 487.3406], [2585.8350, 672.9506], [2680.3999, 1316.0663], [1309.2358, 1268.2878], [1758.9358, 473.4258], [2282.2842, 487.7366], [1882.1841, 922.0600], [2967.7568, 197.0500], [2169.4248, 355.6492]]}
+    
+    print(check_ball_movement(old_image, new_image, target, show=True))

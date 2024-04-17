@@ -60,6 +60,9 @@ class Ui(QMainWindow):
         self.is_dragging_canvas = False
 
         # Link image button events to functions
+        self.update_pockets_checkbox.stateChanged.connect(self.update_pockets_checkbox_changed)
+        self.auto_refresh_checkbox.stateChanged.connect(self.auto_refresh_checkbox_changed)
+        self.auto_refresh_last_image = None
         self.image_name.returnPressed.connect(self.load_button_clicked)
         self.load_image_button.clicked.connect(self.load_button_clicked)
         self.load_webcam_button.clicked.connect(self.load_webcam_clicked)
@@ -118,9 +121,15 @@ class Ui(QMainWindow):
         # Setup play function calls
         self.playing = False
         self.play_start_time = time.time()
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.play_update)
-        self.timer.start(16) # milliseconds
+        self.play_timer = QTimer(self)
+        self.play_timer.timeout.connect(self.play_update)
+        self.play_timer.start(16) # milliseconds
+
+        # Set up auto refresh polling
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.timeout.connect(self.auto_refresh)
+        self.auto_refresh_interval = 1000 # milliseconds
+        self.refresh_timer.start(self.auto_refresh_interval)
 
         # Initialise info display output
         self.string_list = []
@@ -234,6 +243,35 @@ class Ui(QMainWindow):
         self.load_button_clicked()
 
 
+    def update_pockets_checkbox_changed(self):
+        if self.update_pockets_checkbox.isChecked():
+            self.auto_refresh_checkbox.setChecked(False)
+
+        self.auto_refresh_checkbox.setEnabled(not self.update_pockets_checkbox.isChecked())
+    def auto_refresh_checkbox_changed(self):
+        if self.auto_refresh_checkbox.isChecked():
+            self.auto_refresh_last_image = None
+    def auto_refresh(self):
+        if self.auto_refresh_checkbox.isChecked():
+            print("BOSH")
+            
+            # Capture image
+            ret, img = self.cap.read()
+            if ret:
+                # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                
+                if not self.auto_refresh_last_image is None:
+                    if find_edges.check_ball_movement(self.auto_refresh_last_image, img, self.balls_target, threshold=30, proportion_threshold=0.5):
+                        # Something's moved, so refresh
+                        cv2.imwrite(self.temp_webcam_file_name, img)
+
+                        self.process_image(self.temp_webcam_file_name, self.webcam_cal_drop_down.currentText())
+                
+                self.auto_refresh_last_image = img
+            else:
+                self.display_info("Error reading from webcam")
+
+
     def get_pockets(self, image_file):
         self.pocket_evaluator.create_dataset(image_file)
         target = self.pocket_evaluator.get_boxes(0)
@@ -296,26 +334,27 @@ class Ui(QMainWindow):
             else:
                 return c2_c1/dist * (r1 + r2 - dist)
 
+        self.display_info("Displaying image")
 
         # Evaluate NNs
         if self.update_pockets_checkbox.isChecked():
-            pockets_target = self.get_pockets(image_file)
+            self.pockets_target = self.get_pockets(image_file)
         else:
-            pockets_target = self.old_pockets_target
+            self.pockets_target = self.old_pockets_target
 
-        balls_target = self.get_balls(image_file)
+        self.balls_target = self.get_balls(image_file)
 
         
         # Draw NN output for the pockets
         img = cv2.imread(image_file)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        self.plot_img_bbox(self.pockets_widget, img, pockets_target, "NN pocket locations")
+        self.plot_img_bbox(self.pockets_widget, img, self.pockets_target, "NN pocket locations")
         # And for the balls
-        self.plot_img_bbox(self.balls_widget, img, balls_target, "NN ball locations")
+        self.plot_img_bbox(self.balls_widget, img, self.balls_target, "NN ball locations")
 
         try:
             # Get corner points from pocket output
-            pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets_target)
+            pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, self.pockets_target)
             corners = find_edges.get_rect_corners(pocket_lines)
 
             # Get homography between pixelspace and tablespace
@@ -338,10 +377,10 @@ class Ui(QMainWindow):
             red_id = 1
             yellow_id = 9
 
-            for i in range(len(balls_target["labels"])):
-                label = balls_target["labels"][i]
+            for i in range(len(self.balls_target["labels"])):
+                label = self.balls_target["labels"][i]
                 ball_type = self.balls_class_conversion[label]
-                img_center = balls_target["centers"][i]
+                img_center = self.balls_target["centers"][i]
                 # real_center = find_edges.get_world_point(img_center, homography)
                 real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(self.cushion_height - ball_radius))[0]
 
@@ -413,7 +452,7 @@ class Ui(QMainWindow):
 
             self.update_time(set_time=0)
 
-            self.old_pockets_target = pockets_target
+            self.old_pockets_target = self.pockets_target
 
         except AssertionError as e:
             print(e)
@@ -449,7 +488,7 @@ class Ui(QMainWindow):
 
         self.display_info(f"Initialising camera {self.available_cameras[self.current_camera_index]} at index {self.current_camera_index}. This may take a while")
         self.cap = cv2.VideoCapture(self.current_camera_index)
-        self.display_info(f"Camera intialised: {self.available_cameras[self.current_camera_index]}")
+        self.display_info(f"Camera initialised: {self.available_cameras[self.current_camera_index]}")
         self.cap.read()
 
 

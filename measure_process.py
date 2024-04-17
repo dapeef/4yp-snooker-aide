@@ -1312,8 +1312,8 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
 
-    # test = Test(2, "s10+_horizontal")
-    # test.test_pocket_detection("nn_corner", show=True)
+    test = Test(2, "laptop_camera")
+    test.test_pocket_detection("sam", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_ball_detection("hough_masked", blur_radius=10, show=True)
@@ -1326,8 +1326,8 @@ if __name__ == "__main__":
     # test_hough_threshold()
     # test_all("projection")
     # test_corner_detection(show=True)
-    test_end_to_end()
-    test_end_to_end()
+    # test_end_to_end()
+    # test_end_to_end()
 
     plt.close('all')
     elapsed_time = time.time() - start_time
