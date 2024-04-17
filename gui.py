@@ -251,10 +251,9 @@ class Ui(QMainWindow):
     def auto_refresh_checkbox_changed(self):
         if self.auto_refresh_checkbox.isChecked():
             self.auto_refresh_last_image = None
+            self.load_webcam_clicked()
     def auto_refresh(self):
-        if self.auto_refresh_checkbox.isChecked():
-            print("BOSH")
-            
+        if self.auto_refresh_checkbox.isChecked():            
             # Capture image
             ret, img = self.cap.read()
             if ret:
@@ -262,6 +261,7 @@ class Ui(QMainWindow):
                 
                 if not self.auto_refresh_last_image is None:
                     if find_edges.check_ball_movement(self.auto_refresh_last_image, img, self.balls_target, threshold=30, proportion_threshold=0.5):
+                        self.display_info("Change detected; automatically refreshing...")
                         # Something's moved, so refresh
                         cv2.imwrite(self.temp_webcam_file_name, img)
 
