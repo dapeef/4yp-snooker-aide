@@ -393,7 +393,7 @@ class Test:
                 method_time = time.time() - method_time_start
                 method_time += mask_time
                 one_off_time = pockets_evaluator_init_time + method_time
-                
+
             elif method_name == "hough_grey_masked":
                 method_time_start = time.time()
                 # print(f"Min table dims: {min_table_dims}")
@@ -1309,20 +1309,21 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
 
 if __name__ == "__main__":
     start_time = time.time()
+    
     # test = Test(2, "laptop_camera")
-    # test.test_ball_detection(method_name="hough", show=True)
+    # test.test_ball_detection(method_name="hough_masked", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
 
-    test = Test(2, "laptop_camera")
-    test.test_pocket_detection("sam", show=True)
+    # test = Test(2, "laptop_camera")
+    # test.test_pocket_detection("sam", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_ball_detection("hough_masked", blur_radius=10, show=True)
 
-    test = Test(2, "s10+_horizontal")
-    test.test_end_to_end_detection(match_radius=.1, show=True)
+    # test = Test(2, "s10+_horizontal")
+    # test.test_end_to_end_detection(match_radius=.1, show=True)
 
     # test_all("detection")
     # test_blur_radius()
