@@ -747,7 +747,7 @@ class Test:
             expected_points, rot_type = rotate_points(image_file, original_expected_points)
             detected_points = []
 
-            if rot_type != 0:
+            if rot_type in [2, 3]:
                 print(f"!!! Rejecting file {file} because it has bad orientation")
                 # time.sleep(5)
             else:
@@ -866,8 +866,6 @@ class Test:
                     match_radius = 50.8 / 1000 # 1 ball diameter
                     match_radius = 0.13 # Ball separation distance
 
-                self.draw(detected_points, expected_points, image_size=TABLE_SIZE, match_radius=match_radius, show=show)
-
                 results.append(TestResults())
                 results[-1].calculate_initial_metrics(detected_points, expected_points, min_table_dims, match_radius)
                 results[-1].calculate_secondary_metrics()
@@ -876,6 +874,7 @@ class Test:
                 if show:
                     results[-1].print_metrics()
 
+                self.draw(detected_points, expected_points, image_size=TABLE_SIZE, match_radius=match_radius, show=show)
 
         self.result = TestResults()
         self.result.aggregate_results(results)
@@ -1189,15 +1188,19 @@ def draw_end_to_end_graph(metric_name):
     if metric_name == "error_normalised":
         metric_names = ["mean_error_normalised", "max_error_normalised"]
         metric_display_names = ['Normalised\nmean error', 'Normalised\nmax error']
+        y_label = METRIC_NAME_MAP[metric_name]
     elif metric_name == "error":
         metric_names = ["mean_error", "max_error"]
         metric_display_names = ['Mean error', 'Max error']
+        y_label = METRIC_NAME_MAP[metric_name]
     elif type(metric_name) is str:
         metric_names = [metric_name]
         metric_display_names = [METRIC_NAME_MAP[metric_name]]
+        y_label = METRIC_NAME_MAP[metric_name]
     else:
         metric_names = metric_name
         metric_display_names = [METRIC_NAME_MAP[name] for name in metric_name]
+        y_label = ""
 
     values = {x: [] for x in metric_names}
 
@@ -1212,7 +1215,7 @@ def draw_end_to_end_graph(metric_name):
         for _metric_name in metric_names:
             values[_metric_name].append(result[_metric_name]) # *1000 to convert from m to mm
     
-    draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, METRIC_NAME_MAP[metric_name], "lower right")
+    draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, y_label, "lower right")
 
 def draw_detection_demo():
     detected_points = [[2806, 524], [2596, 648], [1661.8370, 654.5792], [2625.1411, 936.1063], [1958.2749, 661.2714], [2208.2310, 1300.3232], [2020.2266, 478.0728], [2271.5137, 670.5620], [2243.7183, 926.1321], [1517.1267, 901.9069], [1765.8833, 1283.6376], [2557.2925, 487.5326], [2680.3542, 1315.9834], [1309.2239, 1268.2955], [2585.1072, 674.5402], [1758.8634, 473.5060], [1882.0923, 922.1781], [2967.4453, 197.1305], [2169.4390, 355.4602]]
@@ -1318,8 +1321,8 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_ball_detection("hough_masked", blur_radius=10, show=True)
 
-    # test = Test(4, "s10+_vertical")
-    # test.test_end_to_end_detection(match_radius=.1, show=True)
+    test = Test(2, "s10+_horizontal")
+    test.test_end_to_end_detection(match_radius=.1, show=True)
 
     # test_all("detection")
     # test_blur_radius()
@@ -1349,6 +1352,8 @@ if __name__ == "__main__":
     # draw_pocket_detection_graph("one_off_time")
     draw_end_to_end_graph("mean_error")
     draw_end_to_end_graph("f1_score")
+    draw_end_to_end_graph("accuracy")
+    draw_end_to_end_graph(["f1_score", "accuracy"])
     draw_end_to_end_graph("eval_time")
     # draw_detection_demo()
 

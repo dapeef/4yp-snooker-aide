@@ -351,6 +351,7 @@ def get_lines_from_pockets(image_file, pockets):
     # plt.title("Lines from NN pockets")
     plt.imshow(image)
     plotLinesPolar(lines, image.shape, "red")
+    plt.axis("off")
     
     # Make mask
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
