@@ -1292,7 +1292,7 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     for bars in bar_sets:
         for bar in bars:
             height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=6)
+            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.2g}", ha='center', va='bottom', fontsize=6)
 
     # Add labels and title
     # plt.xlabel('Test sets', fontweight='bold')
@@ -1340,9 +1340,9 @@ if __name__ == "__main__":
     # draw_detection_graph("precision")
     # draw_detection_graph("recall")
     # draw_detection_graph("accuracy")
-    # draw_detection_graph("f1_score")
-    # draw_detection_graph("mean_error_normalised")
-    # draw_detection_graph("eval_time")
+    draw_detection_graph("f1_score")
+    draw_detection_graph("mean_error_normalised")
+    draw_detection_graph("eval_time")
     # draw_greyscale_comparison_graph("f1_score")
     # draw_blur_radius_graph("f1_score")
     # draw_hough_threshold_graph("f1_score")

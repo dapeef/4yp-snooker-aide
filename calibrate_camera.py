@@ -4,7 +4,10 @@ import glob
 import os
 
 
-def checkerboard_calibrate(image_folder, max_images=10000, display_images=False):
+def checkerboard_calibrate(image_folder, save_folder=None, max_images=10000, show=False):
+    if save_folder is None:
+        save_folder = image_folder
+
     # termination criteria
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
@@ -43,7 +46,7 @@ def checkerboard_calibrate(image_folder, max_images=10000, display_images=False)
             imgpoints.append(corners2)
 
             # Draw and display the corners
-            if display_images:
+            if show:
                 cv2.drawChessboardCorners(img, (n,m), corners2, ret)
                 cv2.imshow('img', cv2.resize(img, (1000, 750)))
                 cv2.waitKey(500)
@@ -51,12 +54,14 @@ def checkerboard_calibrate(image_folder, max_images=10000, display_images=False)
     cv2.destroyAllWindows()
 
     # Get calibration
-    print(f"Computing matrix")
+    print(f"Computing matrix...")
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 
     # Save calibration
-    np.save(os.path.join(image_folder, "intrinsic_matrix.npy"), mtx)
-    np.save(os.path.join(image_folder, "distortion.npy"), dist)
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
+    np.save(os.path.join(save_folder, "intrinsic_matrix.npy"), mtx)
+    np.save(os.path.join(save_folder, "distortion.npy"), dist)
 
     print(f"Intrinsic camera matrix:\n{mtx}")
     print(f"Distortion parameters:\n{dist}")
@@ -91,6 +96,6 @@ def undistort_image(file_name, mtx, dist):
 
 
 if __name__ == "__main__":
-    mtx, dist = checkerboard_calibrate('./calibration/s10+_horizontal', display_images=False, max_images=30)
+    mtx, dist = checkerboard_calibrate('./calibration/s10+_horizontal', show=False, max_images=30)
 
     # undistort_image("./calibration/s10+_horizontal/20240310_115154(0).jpg", mtx, dist)

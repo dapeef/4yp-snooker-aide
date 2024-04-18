@@ -1,7 +1,7 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication, QListView
+from PyQt5.QtWidgets import QMainWindow, QApplication, QListView, QWidget
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, QRect, QPoint, QTimer, QStringListModel
-from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon
+from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon, QPixmap, QImage
 import sys
 import os
 import pooltool as pt
@@ -19,6 +19,129 @@ import matplotlib.colors as mcolors
 from PyQt5.QtWidgets import QVBoxLayout
 import cv2
 from pygrabber.dshow_graph import FilterGraph
+import calibrate_camera
+
+
+class Calibration(QMainWindow):
+    def __init__(self, cap, output_folder, completion_function):
+        super().__init__()
+
+        # Load UI
+        uic.loadUi("calibration.ui", self)
+
+        # Receive capture object from main window
+        self.cap = cap
+        self.device = os.path.basename(output_folder)
+        self.output_folder = output_folder
+        self.completion_function = completion_function
+
+        # Other variables
+        self.temp_folder = "./temp/calibration"
+        self.num_images = 0
+        self.max_images = 12
+
+        # Initialise camera refresh
+        self.camera_refresh_timer = QTimer(self)
+        self.camera_refresh_timer.timeout.connect(self.camera_update)
+        self.camera_refresh_timer.start(int(1000/30)) # milliseconds (30fps)
+
+        # Initialise capture refresh
+        self.capture_refresh_timer = QTimer(self)
+        self.capture_refresh_timer.timeout.connect(self.capture_update)
+        self.capture_refresh_timer.start(1000) # milliseconds (2fps)
+
+        # Link button
+        self.start_button.clicked.connect(self.start_clicked)
+        self.calibrating = False
+        
+        # Save initial label size
+        self.label_size = [1000, 563]
+
+    def get_camera_image(self):
+        ret, img = self.cap.read()
+
+        if ret:
+            return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        else:
+            print("!!! Calibration camera error!")
+    def show_image(self, img):
+        img = cv2.flip(img, 1) # Flip left to right
+        height, width, channels = img.shape
+        bytesPerLine = 3 * width
+        image = QImage(img.data, width, height, bytesPerLine, QImage.Format_RGB888)
+        pixmap = QPixmap(image)
+        pixmap = pixmap.scaled(*self.label_size, Qt.KeepAspectRatio, Qt.FastTransformation)
+        self.image_label.setPixmap(pixmap)
+
+    def camera_update(self):
+        # if not self.calibrating:
+        img = self.get_camera_image()
+
+        if not img is None:
+            self.show_image(img)
+    def capture_update(self):
+        if self.calibrating:
+            img = self.get_camera_image()
+
+            if not img is None:
+                # self.show_image(img)
+
+                file_name = os.path.join(self.temp_folder, f"{time.time()}.jpg")
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(file_name, img)
+
+                self.num_images += 1
+                self.progress_bar.setValue(int(self.num_images / self.max_images * 100))
+
+                if self.num_images >= self.max_images:
+                    print("BOSH, we're done here")
+                    self.image_capture_complete()
+
+    def empty_temp_folder(self):
+        # Clear calibration folder
+        for file_name in os.listdir(self.temp_folder):
+            file_path = os.path.join(self.temp_folder, file_name)
+            os.remove(file_path)
+
+    def image_capture_complete(self):
+        # Stop timers
+        self.camera_refresh_timer.stop()
+        self.capture_refresh_timer.stop()
+
+        self.image_label.setText("Calibrating...")
+        calibrate_camera.checkerboard_calibrate(self.temp_folder, self.output_folder, show=True)
+        self.image_label.setText("Calibration complete")
+
+        self.completion_function(self.device)
+
+        self.close()
+
+    def start_clicked(self):
+        if not self.calibrating:
+            # Start
+            self.empty_temp_folder()
+
+            self.start_button.setText("Cancel")
+            self.calibrating = True
+            
+        else:
+            # Cancel
+            self.start_button.setText("Start")
+            self.calibrating = False
+
+            self.progress_bar.setValue(0)
+
+            self.empty_temp_folder()
+
+    def closeEvent(self, *args, **kwargs):
+        super(QMainWindow, self).closeEvent(*args, **kwargs)
+        
+        # Stop timers
+        self.camera_refresh_timer.stop()
+        self.capture_refresh_timer.stop()
+
+        self.empty_temp_folder()
 
 
 class Ui(QMainWindow):
@@ -72,12 +195,15 @@ class Ui(QMainWindow):
 
         # Initialise settings
         self.calibration_directory = "./calibration"
-        entries = os.listdir(self.calibration_directory)
-        calibration_options = [entry for entry in entries if os.path.isdir(os.path.join(self.calibration_directory, entry))]
+        devices = os.listdir(self.calibration_directory)
+        calibration_options = [device for device in devices if os.path.isdir(os.path.join(self.calibration_directory, device))]
         self.image_cal_drop_down.addItems(calibration_options)
         self.image_cal_drop_down.setCurrentText("s10+_horizontal")
         self.webcam_cal_drop_down.addItems(calibration_options)
         self.webcam_cal_drop_down.setCurrentText("logitech_gui")
+        self.new_calibration_button.clicked.connect(self.new_calibration_clicked)
+        self.game_type_drop_down.addItems(["English 8 ball"])
+        self.game_type_drop_down.setCurrentText("English 8 ball")
 
         # Link time button events to functions
         self.time_slider.valueChanged.connect(
@@ -242,6 +368,16 @@ class Ui(QMainWindow):
         # Set up from initial image
         self.load_button_clicked()
 
+
+    def new_calibration_clicked(self):
+        output_folder = os.path.join(self.calibration_directory, self.new_calibration_name.text())
+        self.calibration_window = Calibration(self.cap, output_folder, self.refresh_calibration_drop_down)
+        self.calibration_window.show()
+    def refresh_calibration_drop_down(self, value):
+        self.image_cal_drop_down.addItem(value)
+        # self.image_cal_drop_down.setCurrentText("s10+_horizontal")
+        self.webcam_cal_drop_down.addItem(value)
+        self.webcam_cal_drop_down.setCurrentText(value)
 
     def update_pockets_checkbox_changed(self):
         if self.update_pockets_checkbox.isChecked():

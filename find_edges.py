@@ -910,7 +910,7 @@ if __name__ == "__main__":
     # old_image = cv2.cvtColor(cv2.imread("./images/diff_old.jpg"), cv2.COLOR_BGR2RGB)
     # new_image = cv2.cvtColor(cv2.imread("./images/diff_new.jpg"), cv2.COLOR_BGR2RGB)
     # # new_image = cv2.cvtColor(cv2.imread("./images/diff_new2.jpg"), cv2.COLOR_BGR2RGB)
-    # pixel_difference(old_image, new_image)
+    # pixel_difference(old_image, new_image, show=True)
     # plt.show()
 
     old_image = cv2.cvtColor(cv2.imread("./images/terrace_phone.jpg"), cv2.COLOR_BGR2RGB)
