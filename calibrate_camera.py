@@ -4,7 +4,7 @@ import glob
 import os
 
 
-def checkerboard_calibrate(image_folder, save_folder=None, max_images=10000, show=False):
+def checkerboard_calibrate(image_folder, save_folder=None, square_size=25, max_images=10000, show=False):
     if save_folder is None:
         save_folder = image_folder
 
@@ -14,7 +14,8 @@ def checkerboard_calibrate(image_folder, save_folder=None, max_images=10000, sho
     # chessboard dims
     n = 8
     m = 6
-    square_size = 31.5 # mm
+    # square_size = 25 # mm
+    print(square_size)
 
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
     objp = np.zeros((n*m, 3), np.float32)
@@ -84,8 +85,6 @@ def undistort_image(file_name, mtx, dist):
     h,  w = img.shape[:2]
     newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
 
-
-
     # Undistort
     dst = cv2.undistort(img, mtx, dist, None, newCameraMatrix)
 
@@ -96,6 +95,6 @@ def undistort_image(file_name, mtx, dist):
 
 
 if __name__ == "__main__":
-    mtx, dist = checkerboard_calibrate('./calibration/s10+_horizontal', show=False, max_images=30)
+    mtx, dist = checkerboard_calibrate('./calibration/s10+_horizontal', square_size=25, show=False)
 
     # undistort_image("./calibration/s10+_horizontal/20240310_115154(0).jpg", mtx, dist)

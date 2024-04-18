@@ -38,7 +38,7 @@ class Calibration(QMainWindow):
         # Other variables
         self.temp_folder = "./temp/calibration"
         self.num_images = 0
-        self.max_images = 12
+        self.max_images = 60
 
         # Initialise camera refresh
         self.camera_refresh_timer = QTimer(self)
@@ -109,8 +109,10 @@ class Calibration(QMainWindow):
         self.camera_refresh_timer.stop()
         self.capture_refresh_timer.stop()
 
+        square_size = float(self.square_size_text.text())
+
         self.image_label.setText("Calibrating...")
-        calibrate_camera.checkerboard_calibrate(self.temp_folder, self.output_folder, show=True)
+        calibrate_camera.checkerboard_calibrate(self.temp_folder, self.output_folder, square_size=square_size, show=True)
         self.image_label.setText("Calibration complete")
 
         self.completion_function(self.device)
