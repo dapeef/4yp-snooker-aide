@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication, QListView, QWidget
 from PyQt5 import uic
-from PyQt5.QtCore import Qt, QRect, QPoint, QTimer, QStringListModel
-from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon, QPixmap, QImage
+from PyQt5.QtCore import Qt, QRect, QPoint, QPointF, QTimer, QStringListModel
+from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon, QPolygonF, QPixmap, QImage
 import sys
 import os
 import pooltool as pt
@@ -133,6 +133,7 @@ class Calibration(QMainWindow):
             self.calibrating = False
 
             self.progress_bar.setValue(0)
+            self.num_images = 0
 
             self.empty_temp_folder()
 
@@ -868,16 +869,24 @@ class Ui(QMainWindow):
         self.canvas_widget.update()
 
 
-    def transform_distance(self, real_distance):
+    def transform_distanceF(self, real_distance):
         table_width = self.shot.table.w
         table_length = self.shot.table.l
 
-        return int(real_distance / table_length * self.canvas_table_width)
+        return real_distance / table_length * self.canvas_table_width
+    def transform_distance(self, real_distance):
+        return int(self.transform_distanceF(real_distance))
     
-    def transform_point(self, real_xy):
+    def transform_pointF(self, real_xy):
         return (
-            int(self.transform_distance(real_xy[1]) + self.canvas_padding),
-            int(self.transform_distance(real_xy[0]) + self.canvas_padding)
+            self.transform_distanceF(real_xy[1]) + self.canvas_padding,
+            self.transform_distanceF(real_xy[0]) + self.canvas_padding
+        )
+    def transform_point(self, real_xy):
+        point = self.transform_pointF(real_xy)
+        return (
+            int(point[0]),
+            int(point[1])
         )
 
     def draw_table_canvas(self, event):
@@ -995,6 +1004,61 @@ class Ui(QMainWindow):
             pen.setColor(QColor("black"))
             painter.setPen(pen)
             painter.drawEllipse(center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
+
+
+        # Draw cue
+        cue_angle = self.shot.cue.phi
+        cue_tangent = np.array([np.cos(np.radians(cue_angle)), np.sin(np.radians(cue_angle))]) # Unit vector pointing in direction of shot
+        cue_normal = np.array([np.sin(np.radians(cue_angle)), -np.cos(np.radians(cue_angle))]) # Unit vector pointing to the right of the shot
+
+        cue_length = self.shot.cue.specs.length
+        cue_tip_radius = self.shot.cue.specs.tip_radius
+        cue_butt_radius = self.shot.cue.specs.butt_radius
+
+        cue_ball_position = np.array(self.shot.balls["cue"].history.states[0].rvw[0][:2])
+        cue_ball_radius = self.shot.balls["cue"].params.R
+
+        cue_separation = self.shot.cue.V0 * 0.03
+
+        cue_tip = cue_ball_position - cue_tangent * (cue_ball_radius + cue_separation)
+        cue_butt = cue_tip - cue_tangent * cue_length
+
+        polygon = QPolygonF()
+        polygon.append(QPointF(*self.transform_point(cue_tip - cue_normal*cue_tip_radius)))
+        polygon.append(QPointF(*self.transform_point(cue_tip + cue_normal*cue_tip_radius)))
+        polygon.append(QPointF(*self.transform_point(cue_butt + cue_normal*cue_butt_radius)))
+        polygon.append(QPointF(*self.transform_point(cue_butt - cue_normal*cue_butt_radius)))
+
+        painter.setBrush(QColor("#F5DEB3"))  # Set the brush color to brown
+        painter.setPen(QColor("black"))  # Disable the pen (border)
+        painter.drawPolygon(polygon)
+
+
+        # Draw legend
+        legend_position = QPoint(self.canvas_widget.width(), self.canvas_widget.height()) + QPoint(-50, -50) * 10
+        legend_position = QPoint(800, 657)
+        painter.setFont(QFont("Arial", 12))
+        painter.setPen(self.color_path[2])
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.setPen(QColor("white"))
+        painter.drawText(legend_position + QPoint(60, 6), "Sliding")
+        legend_position += QPoint(0, 20)
+        painter.setPen(self.color_path[3])
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.setPen(QColor("white"))
+        painter.drawText(legend_position + QPoint(60, 6), "Rolling")
+        legend_position += QPoint(0, 20)
+        painter.setPen(self.color_path[4])
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.drawLine(legend_position, legend_position + QPoint(50, 0))
+        painter.setPen(QColor("white"))
+        painter.drawText(legend_position + QPoint(60, 6), "Potting")
+
 
     def draw_spin_canvas(self, event):
         painter = QPainter(self.spin_canvas_widget)
