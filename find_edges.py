@@ -611,6 +611,24 @@ def get_world_pos_from_perspective(img_points, mtx, rvec, tvec, z_plane):
     
     return np.array(world_points)
 
+def get_img_pos_from_perspective(world_points, mtx, rvec, tvec, z_plane):
+    K_inv = np.linalg.inv(mtx)
+    rmat, _ = cv2.Rodrigues(rvec)
+    tvec = np.transpose(tvec)[0]
+
+    img_points = []
+    
+    for world_point in world_points:
+        world_point_homogeneous = np.transpose(np.append(world_point, [z_plane]))
+
+        img_point_homogeneous = mtx.dot(rmat.dot(world_point_homogeneous) + tvec)
+
+        img_point = img_point_homogeneous / img_point_homogeneous[2]
+
+        img_points.append(img_point[:2])
+    
+    return np.array(img_points)
+
 def get_balls_homography(cushion_homography, height_difference):
     num, Rs, Ts, Ns = cv2.decomposeHomographyMat(cushion_homography, np.identity(3))
 

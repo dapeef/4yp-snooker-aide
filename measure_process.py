@@ -1313,8 +1313,8 @@ if __name__ == "__main__":
     # test = Test(2, "laptop_camera")
     # test.test_ball_detection(method_name="hough_masked", show=True)
 
-    # test = Test(2, "s10+_horizontal")
-    # test.test_projection("projection", show=True)
+    test = Test(2, "s10+_horizontal")
+    test.test_projection("projection", show=True)
 
     # test = Test(2, "laptop_camera")
     # test.test_pocket_detection("sam", show=True)

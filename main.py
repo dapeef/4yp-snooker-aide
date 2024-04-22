@@ -8,6 +8,7 @@ import balls_eval_multiple
 import cv2
 import json
 import os
+import calibrate_camera
 
 
 
@@ -22,6 +23,13 @@ image_file = "./images/terrace_phone.jpg"
 image_file_masked = "./temp\p25_jpg.rf.9627e784e810a4de1eb96393907f2cc4-masked.png" # Masked version of terrace_phone.jpg
 # image_file = "./validation\supervised\set-2\s10+_horizontal\images\p15_jpg.rf.ee6a43fbae79cfa374e83110329bb374.jpg"
 # image_file = "./validation\supervised\set-2\s10+_horizontal\images\p27+_jpg.rf.cd125a93197825dcbcef765bd3cfc4b3.jpg"
+image_file = "validation\supervised\set-2\s10+_horizontal\images\p18_jpg.rf.b80e47920d7e1cc16439f6262859b266.jpg"
+
+
+# camera_name = "logitech_camera"
+# camera_name = "laptop"
+camera_name = "s10+_horizontal"
+
 
 image = cv2.imread(image_file)
 
@@ -100,13 +108,11 @@ table_size = np.array([0.903, 1.676]) # English 8 ball
 # table_size = np.array([1.676, 0.903]) # English 8 ball (sideways)
 
 
-# camera_name = "logitech_camera"
-# camera_name = "laptop"
-camera_name = "s10+_horizontal"
-
 mtx = np.load(os.path.join("./calibration", camera_name, "intrinsic_matrix.npy"))
 dist_coeffs = np.load(os.path.join("./calibration", camera_name, "distortion.npy"))
-dist_coeffs = None
+# dist_coeffs = None
+
+calibrate_camera.undistort_image(image_file, mtx, dist_coeffs)
 
 # print(f"K: {mtx}")
 # print(f"dist_coeffs: {dist_coeffs}")
