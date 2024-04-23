@@ -112,7 +112,12 @@ mtx = np.load(os.path.join("./calibration", camera_name, "intrinsic_matrix.npy")
 dist_coeffs = np.load(os.path.join("./calibration", camera_name, "distortion.npy"))
 # dist_coeffs = None
 
-calibrate_camera.undistort_image(image_file, mtx, dist_coeffs)
+
+img = cv2.imread(image_file)
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+img = cv2.undistort(img, mtx, dist_coeffs)
+cv2.imwrite("./temp/undistorted.png", img)
+
 
 # print(f"K: {mtx}")
 # print(f"dist_coeffs: {dist_coeffs}")

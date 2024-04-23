@@ -562,7 +562,7 @@ def get_homography(img_corners, table_dims):
 
     return homography
 
-def get_perspective(img_corners, table_dims, mtx, dist_coeffs):
+def get_perspective(img_corners, table_dims, mtx, dist_coeffs=None):
     width = table_dims[0]
     height = table_dims[1]
 

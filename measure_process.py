@@ -21,7 +21,7 @@ METRIC_NAME_MAP = {
     "false_positives": "False positives",
     "true_negatives": "True negatives",
     "false_negatives": "False negatives",
-    "mean_error": "Absolute mean error", # (mm)",
+    "mean_error": "Absolute mean error (mm)",
     "mean_error_normalised": "Normalised mean error",
     "max_error": "Absolute max error",
     "max_error_normalised": "Normalised max error",
@@ -499,6 +499,8 @@ class Test:
             image_file = os.path.join(self.images_folder, file)
             label_file = os.path.join(self.labels_folder, f"{os.path.splitext(file)[0]}.txt")
             corner_label_file = os.path.join(self.corner_labels_folder, f"{os.path.splitext(file)[0]}.txt")
+            if show:
+                print(image_file)
 
             expected_points, rot_type = rotate_points(image_file, original_expected_points)
 
@@ -525,7 +527,13 @@ class Test:
             elif method_name == "projection":
                 method_time_start = time.time()
 
-                rvec, tvec, projection = find_edges.get_perspective(corners, local_table_size, mtx, dist_coeffs)
+                corners = cv2.undistortImagePoints(corners, mtx, dist_coeffs)
+                corners = np.array([x[0] for x in corners])
+
+                image_points = cv2.undistortImagePoints(image_points, mtx, dist_coeffs)
+                image_points = np.array([x[0] for x in image_points])
+
+                rvec, tvec, projection = find_edges.get_perspective(corners, local_table_size, mtx, None)
                 detected_points = find_edges.get_world_pos_from_perspective(image_points, mtx, rvec, tvec, -(0.037 - 0.0508/2))
 
                 method_time = time.time() - method_time_start
@@ -552,7 +560,7 @@ class Test:
             if results[i].false_positives != 0 or \
                    results[i].true_negatives != 0 or \
                    results[i].false_negatives != 0:
-                print("!!! Not all balls matching, check this is correct")
+                raise Exception("!!! Not all balls matching, check this is correct")
 
             self.draw(detected_points, expected_points, image_size=local_table_size, match_radius=match_radius, show=show)
 
@@ -657,7 +665,7 @@ class Test:
 
         return self.result
 
-    def test_end_to_end_detection(self, match_radius=None, show=False):
+    def test_end_to_end_detection(self, match_radius=None, reject_rotations=False, show=False):
         def get_pockets(pockets_evaluator, image_file):
             pockets_evaluator.create_dataset(image_file)
             target = pockets_evaluator.get_boxes(0)
@@ -747,11 +755,28 @@ class Test:
             expected_points, rot_type = rotate_points(image_file, original_expected_points)
             detected_points = []
 
-            if rot_type in [2, 3]:
+            if reject_rotations:
+                rejected_rotations = [1, 2, 3]
+            else:
+                rejected_rotations = [2, 3]
+
+            if rot_type in rejected_rotations:
                 print(f"!!! Rejecting file {file} because it has bad orientation")
                 # time.sleep(5)
             else:
                 print(f"\nAnalysing image: {image_file} end-to-end")
+                
+                # Get camera parameters
+                calibration_directory = "./calibration"
+                mtx = np.load(os.path.join(calibration_directory, self.device, "intrinsic_matrix.npy"))
+                dist_coeffs = np.load(os.path.join(calibration_directory, self.device, "distortion.npy"))
+                
+                # Undistort images
+                undistorted_image_file = "./temp/undistorted.png"
+                img = cv2.imread(image_file)
+                img = cv2.undistort(img, mtx, dist_coeffs)
+                cv2.imwrite(undistorted_image_file, img)
+                image_file = undistorted_image_file
 
                 # Evaluate NNs
                 pockets_eval_start = time.time()
@@ -772,10 +797,7 @@ class Test:
                 table_size = [shot.table.w + 2*cushion_thickness_real, shot.table.l + 2*cushion_thickness_real]
                 # print(f"Table size: {table_size}")
 
-                calibration_directory = "./calibration"
-                mtx = np.load(os.path.join(calibration_directory, self.device, "intrinsic_matrix.npy"))
-                dist_coeffs = np.load(os.path.join(calibration_directory, self.device, "distortion.npy"))
-                rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx, dist_coeffs)
+                rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx)
 
 
                 # Process all balls
@@ -1081,7 +1103,7 @@ def test_corner_detection(show=False):
         set_result.print_metrics()
         set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
 
-def test_end_to_end():
+def test_end_to_end(reject_rotations=False):
     match_radii = [.1, .2, .1 , .1, .1]
 
     results = []
@@ -1101,7 +1123,7 @@ def test_end_to_end():
                 print(e)
                 continue
 
-            results.append(test.test_end_to_end_detection(match_radius=match_radii[set_num - 1]))
+            results.append(test.test_end_to_end_detection(match_radius=match_radii[set_num - 1], reject_rotations=reject_rotations))
         
         # Aggregate results
         set_result = TestResults()
@@ -1160,8 +1182,8 @@ def draw_projection_graphs():
     method_names = ["homography", "projection"]
     method_display_names = ['Homography', 'Pose estimation']
 
-    draw_single_set_graph(method_names, method_display_names, "mean_error", "Mean error (metres)", set_num=2)
-    draw_single_set_graph(method_names, method_display_names, "mean_error_normalised", "Normalised mean error (metres)", set_num=2)
+    draw_single_set_graph(method_names, method_display_names, "mean_error", "Mean error (mm)", set_num=2)
+    draw_single_set_graph(method_names, method_display_names, "mean_error_normalised", "Normalised mean error (mm)", set_num=2)
     draw_single_set_graph(method_names, method_display_names, "eval_time", "Evaluation time for\n16 balls (secs)", set_num=2)
 
 def draw_pocket_detection_graph(metric_name, set_num=2):
@@ -1213,7 +1235,7 @@ def draw_end_to_end_graph(metric_name):
         result = result_object.load_from_file(file_name)
 
         for _metric_name in metric_names:
-            values[_metric_name].append(result[_metric_name]) # *1000 to convert from m to mm
+            values[_metric_name].append(result[_metric_name] * 1000) # *1000 to convert from m to mm
     
     draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, y_label, "lower right")
 
@@ -1292,7 +1314,7 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
     for bars in bar_sets:
         for bar in bars:
             height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.2g}", ha='center', va='bottom', fontsize=6)
+            plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=6)
 
     # Add labels and title
     # plt.xlabel('Test sets', fontweight='bold')
@@ -1313,8 +1335,8 @@ if __name__ == "__main__":
     # test = Test(2, "laptop_camera")
     # test.test_ball_detection(method_name="hough_masked", show=True)
 
-    test = Test(2, "s10+_horizontal")
-    test.test_projection("projection", show=True)
+    # test = Test(2, "s10+_horizontal")
+    # test.test_projection("projection", show=True)
 
     # test = Test(2, "laptop_camera")
     # test.test_pocket_detection("sam", show=True)
@@ -1330,8 +1352,7 @@ if __name__ == "__main__":
     # test_hough_threshold()
     # test_all("projection")
     # test_corner_detection(show=True)
-    # test_end_to_end()
-    # test_end_to_end()
+    # test_end_to_end(reject_rotations=True)
 
     plt.close('all')
     elapsed_time = time.time() - start_time
@@ -1340,9 +1361,9 @@ if __name__ == "__main__":
     # draw_detection_graph("precision")
     # draw_detection_graph("recall")
     # draw_detection_graph("accuracy")
-    draw_detection_graph("f1_score")
-    draw_detection_graph("mean_error_normalised")
-    draw_detection_graph("eval_time")
+    # draw_detection_graph("f1_score")
+    # draw_detection_graph("mean_error_normalised")
+    # draw_detection_graph("eval_time")
     # draw_greyscale_comparison_graph("f1_score")
     # draw_blur_radius_graph("f1_score")
     # draw_hough_threshold_graph("f1_score")
@@ -1351,9 +1372,9 @@ if __name__ == "__main__":
     # draw_pocket_detection_graph("f1_score")
     # draw_pocket_detection_graph("eval_time")
     # draw_pocket_detection_graph("one_off_time")
+    # draw_end_to_end_graph("f1_score")
+    # draw_end_to_end_graph("accuracy")
     draw_end_to_end_graph("mean_error")
-    draw_end_to_end_graph("f1_score")
-    draw_end_to_end_graph("accuracy")
     draw_end_to_end_graph(["f1_score", "accuracy"])
     draw_end_to_end_graph("eval_time")
     # draw_detection_demo()

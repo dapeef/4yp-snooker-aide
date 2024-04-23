@@ -473,7 +473,18 @@ class Ui(QMainWindow):
             else:
                 return c2_c1/dist * (r1 + r2 - dist)
 
-        self.display_info("Displaying image")
+        self.display_info("Processing image")
+
+        # Get camera parameters
+        mtx = np.load(os.path.join(self.calibration_directory, calibration_folder, "intrinsic_matrix.npy"))
+        dist_coeffs = np.load(os.path.join(self.calibration_directory, calibration_folder, "distortion.npy"))
+        
+        # Undistort images
+        undistorted_image_file = "./temp/undistorted.png"
+        img = cv2.imread(image_file)
+        img = cv2.undistort(img, mtx, dist_coeffs)
+        cv2.imwrite(undistorted_image_file, img)
+        image_file = undistorted_image_file
 
         # Evaluate NNs
         if self.update_pockets_checkbox.isChecked():
@@ -500,11 +511,8 @@ class Ui(QMainWindow):
             table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
             # print(f"Table size: {table_size}")
 
-            mtx = np.load(os.path.join(self.calibration_directory, calibration_folder, "intrinsic_matrix.npy"))
-            dist_coeffs = np.load(os.path.join(self.calibration_directory, calibration_folder, "distortion.npy"))
-            rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx, dist_coeffs)
+            rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx)
 
-            # homography = find_edges.get_homography(corners, table_size)
 
 
             # Process all balls
@@ -520,7 +528,6 @@ class Ui(QMainWindow):
                 label = self.balls_target["labels"][i]
                 ball_type = self.balls_class_conversion[label]
                 img_center = self.balls_target["centers"][i]
-                # real_center = find_edges.get_world_point(img_center, homography)
                 real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(self.cushion_height - ball_radius))[0]
 
                 real_center -= np.array([1, 1]) * self.cushion_thickness_real
@@ -686,6 +693,8 @@ class Ui(QMainWindow):
         layout.addWidget(canvas)
         widget.setLayout(layout)
         canvas.draw()
+
+        plt.tight_layout()
 
 
     def update_time(self, set_time=None, rel_time=None, slider_set=False):

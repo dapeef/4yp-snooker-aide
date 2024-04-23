@@ -88,10 +88,12 @@ def undistort_image(file_name, mtx, dist):
     # Undistort
     dst = cv2.undistort(img, mtx, dist, None, newCameraMatrix)
 
-    # crop the image
+    # # crop the image
     x, y, w, h = roi
     dst = dst[y:y+h, x:x+w]
-    cv2.imwrite('./temp/undistortion_result.png', dst)  
+    cv2.imwrite('./temp/undistortion_result.png', dst)
+
+    return newCameraMatrix
 
 
 if __name__ == "__main__":
