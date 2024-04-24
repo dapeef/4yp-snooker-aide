@@ -21,7 +21,7 @@ METRIC_NAME_MAP = {
     "false_positives": "False positives",
     "true_negatives": "True negatives",
     "false_negatives": "False negatives",
-    "mean_error": "Absolute mean error (mm)",
+    "mean_error": "Absolute mean error", # (mm)",
     "mean_error_normalised": "Normalised mean error",
     "max_error": "Absolute max error",
     "max_error_normalised": "Normalised max error",
@@ -1235,7 +1235,7 @@ def draw_end_to_end_graph(metric_name):
         result = result_object.load_from_file(file_name)
 
         for _metric_name in metric_names:
-            values[_metric_name].append(result[_metric_name] * 1000) # *1000 to convert from m to mm
+            values[_metric_name].append(result[_metric_name]) # *1000 to convert from m to mm
     
     draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, y_label, "lower right")
 

@@ -313,6 +313,7 @@ def get_lines_from_pockets(image_file, pockets):
 
             dists.append(np.linalg.norm([x2-x1, y2-y1]))
     
+    min_dist = min(dists)
     max_dist = max(dists)
 
     if len(corners) != 4:
@@ -359,7 +360,7 @@ def get_lines_from_pockets(image_file, pockets):
     corners = np.array([corners], dtype=np.int32)
     cv2.fillPoly(mask, corners, color=1)  # Set color to 1 for binary mask
 
-    return lines, mask, max_dist
+    return lines, mask, min_dist
 
 def save_masked_image(image_file, mask):
     # Get lines for original image
