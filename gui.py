@@ -502,107 +502,118 @@ class Ui(QMainWindow):
         # And for the balls
         self.plot_img_bbox(self.balls_widget, img, self.balls_target, "NN ball locations")
 
-        try:
-            # Get corner points from pocket output
-            pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, self.pockets_target)
-            corners = find_edges.get_rect_corners(pocket_lines)
+        # Check that at least one cue ball has been detected
+        cue_ball_exists = False
+        for i in range(len(self.balls_target["labels"])):
+            label = self.balls_target["labels"][i]
+            ball_type = self.balls_class_conversion[label]
+            if ball_type == "cue":
+                cue_ball_exists = True
 
-            # Get homography between pixelspace and tablespace
-            table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
-            # print(f"Table size: {table_size}")
+        if cue_ball_exists:
+            try:
+                # Get corner points from pocket output
+                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, self.pockets_target)
+                corners = find_edges.get_rect_corners(pocket_lines)
 
-            rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx)
+                # Get homography between pixelspace and tablespace
+                table_size = [self.shot.table.w + 2*self.cushion_thickness_real, self.shot.table.l + 2*self.cushion_thickness_real]
+                # print(f"Table size: {table_size}")
+
+                rvec, tvec, projection = find_edges.get_perspective(corners, table_size, mtx)
 
 
 
-            # Process all balls
-            # Inflate ball radius slightly so it moves the balls far enough away from cushions
-            ball_radius = pt_utils.english_8_ball_ball_params().R + self.simulation_nudge
+                # Process all balls
+                # Inflate ball radius slightly so it moves the balls far enough away from cushions
+                ball_radius = pt_utils.english_8_ball_ball_params().R + self.simulation_nudge
 
-            balls = {}
+                balls = {}
 
-            red_id = 1
-            yellow_id = 9
+                red_id = 1
+                yellow_id = 9
 
-            for i in range(len(self.balls_target["labels"])):
-                label = self.balls_target["labels"][i]
-                ball_type = self.balls_class_conversion[label]
-                img_center = self.balls_target["centers"][i]
-                real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(self.cushion_height - ball_radius))[0]
+                for i in range(len(self.balls_target["labels"])):
+                    label = self.balls_target["labels"][i]
+                    ball_type = self.balls_class_conversion[label]
+                    img_center = self.balls_target["centers"][i]
+                    real_center = find_edges.get_world_pos_from_perspective([img_center], mtx, rvec, tvec, -(self.cushion_height - ball_radius))[0]
 
-                real_center -= np.array([1, 1]) * self.cushion_thickness_real
+                    real_center -= np.array([1, 1]) * self.cushion_thickness_real
 
-                move_count = 1
-                total_move_count = 0
+                    move_count = 1
+                    total_move_count = 0
 
-                while move_count >= 1:
-                    move_count = 0
+                    while move_count >= 1:
+                        move_count = 0
 
-                    # Jiggle position to remove ball-round_cushion overlaps
-                    for ball_id, ball in balls.items():
-                        vec = circle_circle_overlap_vector(real_center, ball_radius, ball.state.rvw[0][:2], ball.params.R)
-                        if not (vec==np.array([0,0])).all():
-                            move_count += 1
-                        real_center += vec
+                        # Jiggle position to remove ball-round_cushion overlaps
+                        for ball_id, ball in balls.items():
+                            vec = circle_circle_overlap_vector(real_center, ball_radius, ball.state.rvw[0][:2], ball.params.R)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
 
-                    # Jiggle position to remove ball-round_cushion overlaps
-                    for line_id, line_info in self.shot.table.cushion_segments.circular.items():
-                        vec = circle_circle_overlap_vector(real_center, ball_radius, line_info.center[:2], line_info.radius)
-                        if not (vec==np.array([0,0])).all():
-                            move_count += 1
-                        real_center += vec
+                        # Jiggle position to remove ball-round_cushion overlaps
+                        for line_id, line_info in self.shot.table.cushion_segments.circular.items():
+                            vec = circle_circle_overlap_vector(real_center, ball_radius, line_info.center[:2], line_info.radius)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
 
-                    # Jiggle position to remove ball-line_cushion overlaps
-                    for line_id, line_info in self.shot.table.cushion_segments.linear.items():
-                        vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
-                        if not (vec==np.array([0,0])).all():
-                            move_count += 1
-                        real_center += vec
+                        # Jiggle position to remove ball-line_cushion overlaps
+                        for line_id, line_info in self.shot.table.cushion_segments.linear.items():
+                            vec = circle_line_overlap_vector(real_center, ball_radius, line_info.p1, line_info.p2)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
 
-                    # Jiggle position to ensure balls don't fall straight into pockets
-                    for pocket_id, pocket_info in self.shot.table.pockets.items():
-                        vec = circle_circle_overlap_vector(real_center, ball_radius, pocket_info.center[:2], pocket_info.radius-ball_radius+self.simulation_nudge)
-                        if not (vec==np.array([0,0])).all():
-                            move_count += 1
-                        real_center += vec
-                    
-                    total_move_count += move_count
+                        # Jiggle position to ensure balls don't fall straight into pockets
+                        for pocket_id, pocket_info in self.shot.table.pockets.items():
+                            vec = circle_circle_overlap_vector(real_center, ball_radius, pocket_info.center[:2], pocket_info.radius-ball_radius+self.simulation_nudge)
+                            if not (vec==np.array([0,0])).all():
+                                move_count += 1
+                            real_center += vec
+                        
+                        total_move_count += move_count
 
-                    if total_move_count >= 1000:
-                        self.display_info(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
-                        break
+                        if total_move_count >= 1000:
+                            self.display_info(f"Can't place ball - can't wiggle it into a suitable place. Given up, and placed at {real_center}")
+                            break
 
-                if real_center[0] >= 0 and \
-                real_center[1] >= 0 and \
-                real_center[0] <= table_size[0] and \
-                real_center[1] <= table_size[1]:
+                    if real_center[0] >= 0 and \
+                    real_center[1] >= 0 and \
+                    real_center[0] <= table_size[0] and \
+                    real_center[1] <= table_size[1]:
 
-                    #TODO add catches for too many cue balls etc
-                    if ball_type == "cue":
-                        ball_id = "cue"
-                    elif ball_type == "red":
-                        ball_id = red_id
-                        red_id += 1
-                    elif ball_type == "yellow":
-                        ball_id = yellow_id
-                        yellow_id += 1
-                    elif ball_type == "8":
-                        ball_id = 8
+                        #TODO add catches for too many cue balls etc
+                        if ball_type == "cue":
+                            ball_id = "cue"
+                        elif ball_type == "red":
+                            ball_id = red_id
+                            red_id += 1
+                        elif ball_type == "yellow":
+                            ball_id = yellow_id
+                            yellow_id += 1
+                        elif ball_type == "8":
+                            ball_id = 8
 
-                    ball_id = str(ball_id)
+                        ball_id = str(ball_id)
 
-                    balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
+                        balls[ball_id] = pt_utils.create_ball(ball_id, real_center)
 
-            self.shot.balls = balls
-            self.update_shot()
+                self.shot.balls = balls
+                self.update_shot()
 
-            self.update_time(set_time=0)
+                self.update_time(set_time=0)
 
-            self.old_pockets_target = self.pockets_target
+                self.old_pockets_target = self.pockets_target
 
-        except AssertionError as e:
-            print(e)
-            self.display_info(f"Failed to process pockets: {e}")
+            except AssertionError as e:
+                print(e)
+                self.display_info(f"Failed to process pockets: {e}")
+        else:
+            self.display_info("No cue ball found in image")
 
     def load_button_clicked(self):
         # Load image
@@ -998,7 +1009,12 @@ class Ui(QMainWindow):
 
         # Draw balls
         for ball_id, ball_info in self.shot.balls.items():
-            color = self.color_ball[ball_info.ballset.name][ball_info.id]
+            if ball_info.id in self.color_ball[ball_info.ballset.name].keys():
+                color = self.color_ball[ball_info.ballset.name][ball_info.id]
+            else:
+                # If not valid colour, then display as grey
+                color = QColor("gray")
+
             # Work out the most appropriate state
             best_state = ball_info.history_cts.states[0]
             for state in ball_info.history_cts.states:
