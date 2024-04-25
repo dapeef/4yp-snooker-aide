@@ -13,6 +13,7 @@ import time
 import sam
 import pooltool_test as pt_utils
 import pooltool as pt
+import random
 
 TABLE_SIZE = np.array([0.903, 1.676]) # English 8 ball
 SET_NAMES = ['Close\ndispersed', 'Far\ndispersed', 'Obscured\nby cushion', 'Obscured by\nsame colour', 'Obscured by\nother colour']
@@ -32,7 +33,13 @@ METRIC_NAME_MAP = {
     "f1_score": "F1 score",
     "accuracy": "Accuracy",
     "eval_time": "Evaluation time (secs)",
-    "one_off_time": "One-off evaluation time (secs)"
+    "one_off_time": "One-off evaluation time (secs)",
+    "training_loss": "Training loss",
+    "loss_classifier": "Classifier loss",
+    "loss_box_reg": "Box regression loss",
+    "loss_objectness": "Objectness loss",
+    "loss_rpn_box_reg": "RPN box reg. loss",
+    "loss": "Total loss"
 }
 
 def get_closest_point(point_of_interest, points):
@@ -140,6 +147,7 @@ def rotate_points(file_path, points):
 class TestResults:
     def __init__(self):
         self.img_count = 1
+        self.training_loss = 0
 
     def print_metrics(self):
         print(f"True positives: {self.true_positives}")
@@ -157,6 +165,7 @@ class TestResults:
         print(f"Evaluation time: {self.eval_time}")
         print(f"One off time: {self.one_off_time}")
         print(f"Image count: {self.img_count}")
+        print(f"Training loss: {self.training_loss}")
 
     def pickle_metrics(self):
         return {
@@ -174,7 +183,8 @@ class TestResults:
             "accuracy": self.accuracy,
             "eval_time": self.eval_time,
             "one_off_time": self.one_off_time,
-            "img_count": self.img_count
+            "img_count": self.img_count,
+            "training_loss": self.training_loss
         }
 
     def unpickle_metrics(self, pickle):
@@ -193,6 +203,7 @@ class TestResults:
         self.eval_time = pickle["eval_time"]
         self.one_off_time = pickle["one_off_time"]
         self.img_count = pickle["img_count"]
+        self.training_loss = pickle["training_loss"]
 
     def save_to_file(self, file_name):
         with open(file_name, 'w') as json_file:
@@ -204,7 +215,7 @@ class TestResults:
 
     def mean_of_list(self, lst):
         if len(lst) == 0:
-            return None  # Return None if the list is empty
+            return 0  # Return None if the list is empty
         return sum(lst) / len(lst)
 
     def calculate_initial_metrics(self, detected_points, expected_points, normalisation, match_radius):
@@ -309,6 +320,8 @@ class TestResults:
 
             self.img_count += result.img_count
 
+            self.training_loss = result.training_loss
+
         self.calculate_secondary_metrics()
 
         self.mean_error = self.mean_of_list(mean_errors)
@@ -333,7 +346,7 @@ class Test:
         self.corner_labels_folder = os.path.join(self.folder, "corner_labels")
         self.sam_labels_folder = os.path.join(self.folder, "sam_labels")
 
-    def test_ball_detection(self, method_name, show=False, blur_radius=None, hough_threshold=None):
+    def test_ball_detection(self, method_name, custom_file_name=None, show=False, blur_radius=None, hough_threshold=None):
         # method_name values can be "hough", "hough_masked", "nn", "nn_masked"
 
         balls_evaluator_init_time_start = time.time()
@@ -459,7 +472,10 @@ class Test:
             print("Total results:")
             self.result.print_metrics()
 
-        if not blur_radius is None:
+        if not custom_file_name is None:
+            method_file_name = custom_file_name
+
+        elif not blur_radius is None:
             method_file_name = f"{method_name}_rad_{blur_radius}"
 
         elif not hough_threshold is None:
@@ -532,6 +548,10 @@ class Test:
 
                 image_points = cv2.undistortImagePoints(image_points, mtx, dist_coeffs)
                 image_points = np.array([x[0] for x in image_points])
+
+                # original_image = cv2.imread(image_file)
+                # undistorted_image = cv2.undistort(original_image, mtx, dist_coeffs)
+                # mtx = cv2.getOptimalNewCameraMatrix(mtx, dist_coeffs, original_image.shape[:2], 1, undistorted_image.shape[:2])[0]
 
                 rvec, tvec, projection = find_edges.get_perspective(corners, local_table_size, mtx, None)
                 detected_points = find_edges.get_world_pos_from_perspective(image_points, mtx, rvec, tvec, -(0.037 - 0.0508/2))
@@ -1235,7 +1255,7 @@ def draw_end_to_end_graph(metric_name):
         result = result_object.load_from_file(file_name)
 
         for _metric_name in metric_names:
-            values[_metric_name].append(result[_metric_name]) # *1000 to convert from m to mm
+            values[_metric_name].append(result[_metric_name] * 1000) # *1000 to convert from m to mm
     
     draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, y_label, "lower right")
 
@@ -1248,6 +1268,82 @@ def draw_detection_demo():
     dummy_test = Test(2, "s10+_horizontal")
     dummy_test.draw(detected_points, expected_points, image_file, match_radius=match_radius, show=True)
 
+def draw_balls_training(metrics, loss_metrics=["loss"]):
+    epochs = {}
+
+    for set_num in range(1, 6):
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        
+        file_names = [filename for filename in os.listdir(directory) if filename.startswith("balls_training_")]
+
+        for file_name in file_names:
+            file_path = os.path.join(directory, file_name)
+            result_object = TestResults()
+            pickle = result_object.load_from_file(file_path)
+            result_object.unpickle_metrics(pickle)
+
+            epoch_num = int(file_name.split("_")[3]) + 1
+            try:
+                epochs[epoch_num]
+            except KeyError:
+                epochs[epoch_num] = []
+            epochs[epoch_num].append(result_object)
+    
+    for key, results in epochs.items():
+        set_result = TestResults()
+        set_result.aggregate_results(results)
+
+        epochs[key] = set_result
+        
+    epochs = dict(sorted(epochs.items(), key=lambda x: x[0]))
+    
+    data = {metric: [] for metric in metrics}
+    data["epochs"] = []
+
+    for key, result in epochs.items():
+        data["epochs"].append(key)
+
+        for metric in metrics:
+            data[metric].append(result.pickle_metrics()[metric])
+
+
+    fig = plt.figure()
+    ax = plt.gca()
+    ax.yaxis.set_visible(False)
+
+    axes = []
+    lines = []
+    labels = []
+
+    tableau_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    for metric in metrics:
+        if metric != "training_loss":
+            axes.append(ax.twinx())
+            axes[-1].plot(data["epochs"], data[metric], color=tableau_colors.pop(0), label=METRIC_NAME_MAP[metric])
+            axes[-1].yaxis.set_visible(False)
+            line, label = axes[-1].get_legend_handles_labels()
+            lines.append(line)
+            labels.append(label)
+    
+    if "training_loss" in data.keys():
+        for loss_metric in loss_metrics:
+            training_data = []
+            for loss in data["training_loss"]:
+                training_data.append(loss[loss_metric])
+            axes.append(ax.twinx())
+            axes[-1].plot(data["epochs"], training_data, color=tableau_colors.pop(0), label=METRIC_NAME_MAP[loss_metric])
+            axes[-1].yaxis.set_visible(False)
+            line, label = axes[-1].get_legend_handles_labels()
+            lines.append(line)
+            labels.append(label)
+    
+    ax.set_xlabel("Epoch")
+
+    lines = [item for sublist in lines for item in sublist]
+    labels = [item for sublist in labels for item in sublist]
+    plt.legend(lines, labels, loc='center right')
+
 
 def draw_single_set_graph(method_names, method_display_names, metric_name, metric_display_name, set_num=2):
     directory = os.path.join("./validation/supervised", f"set-{set_num}")
@@ -1259,7 +1355,7 @@ def draw_single_set_graph(method_names, method_display_names, metric_name, metri
         result_object = TestResults()
         result = result_object.load_from_file(file_name)
 
-        values.append(result[metric_name])
+        values.append(result[metric_name] * 1000) # *1000 for mm
 
     # Create bar chart
     plt.figure()
@@ -1347,6 +1443,7 @@ if __name__ == "__main__":
     # test = Test(2, "s10+_horizontal")
     # test.test_end_to_end_detection(match_radius=.1, show=True)
 
+
     # test_all("detection")
     # test_blur_radius()
     # test_hough_threshold()
@@ -1364,19 +1461,27 @@ if __name__ == "__main__":
     # draw_detection_graph("f1_score")
     # draw_detection_graph("mean_error_normalised")
     # draw_detection_graph("eval_time")
+
     # draw_greyscale_comparison_graph("f1_score")
     # draw_blur_radius_graph("f1_score")
     # draw_hough_threshold_graph("f1_score")
+
     # draw_projection_graphs()
+
     # draw_pocket_detection_graph("mean_error_normalised")
     # draw_pocket_detection_graph("f1_score")
     # draw_pocket_detection_graph("eval_time")
     # draw_pocket_detection_graph("one_off_time")
+
     # draw_end_to_end_graph("f1_score")
     # draw_end_to_end_graph("accuracy")
-    draw_end_to_end_graph("mean_error")
-    draw_end_to_end_graph(["f1_score", "accuracy"])
-    draw_end_to_end_graph("eval_time")
+    # draw_end_to_end_graph("mean_error")
+    # draw_end_to_end_graph(["f1_score", "accuracy"])
+    # draw_end_to_end_graph("eval_time")
+    # draw_end_to_end_graph("max_error")
+
     # draw_detection_demo()
+
+    draw_balls_training(["training_loss", "f1_score", "mean_error_normalised"], ["loss", "loss_classifier", "loss_box_reg"])
 
     plt.show()

@@ -402,7 +402,7 @@ def get_object_detection_model(num_classes=2):
     
     return model
 
-def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2):
+def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2, test_function=None):
     # train on gpu if available
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     print("Training on device:", device)
@@ -467,7 +467,7 @@ def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2):
 
     for epoch in range(last_epoch + 1, num_epochs):
         # training for one epoch
-        engine.train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
+        losses_reduced = engine.train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
         # update the learning rate
         lr_scheduler.step()
 
@@ -480,6 +480,11 @@ def train_nn(dataset, dataset_test, checkpoint_file, num_epochs, num_classes=2):
 
         # evaluate on the test dataset
         engine.evaluate(model, data_loader_test, device=device)
+
+        if not test_function is None:
+            test_function(epoch, losses_reduced)
+
+        print(f"Loss: {losses_reduced}")
 
         print(f"Woo! Finished epoch {epoch}!\n\n\n")
 

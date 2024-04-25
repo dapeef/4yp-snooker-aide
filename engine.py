@@ -23,11 +23,14 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
         lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
+    loss_dicts = [] # AWH
+
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         loss_dict = model(images, targets)
+        loss_dicts.append(loss_dict) # AWH
 
         losses = sum(loss for loss in loss_dict.values())
 
@@ -52,6 +55,14 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
+    #AWH
+    loss_reduced = {key: 0 for key in loss_dicts[0].keys()}
+    for key in loss_reduced.keys():
+        for loss_dict in loss_dicts:
+            loss_reduced[key] += float(loss_dict[key])
+        loss_reduced[key] /= len(loss_dicts)
+    loss_reduced["loss"] = sum(loss_reduced.values())
+    return loss_reduced
 
 def _get_iou_types(model):
     model_without_ddp = model
