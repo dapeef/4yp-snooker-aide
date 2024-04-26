@@ -993,8 +993,12 @@ class Ui(QMainWindow):
                 if current_state_id != state.s or i == len(ball_info.history_cts.states):
                     # Set the pen color based on the value of s
                     if state.s == 3: # Rolling
-                        color = self.color_ball[ball_info.ballset.name][ball_info.id].lighter(180)
-                        pen.setColor(color)
+                        if ball_info.id in self.color_ball[ball_info.ballset.name].keys():
+                            color = self.color_ball[ball_info.ballset.name][ball_info.id]
+                        else:
+                            # If not valid colour, then display as grey
+                            color = QColor("gray")
+                        pen.setColor(color.lighter(180))
                     else:
                         pen.setColor(self.color_path[state.s])
                     pen.setWidth(2)
