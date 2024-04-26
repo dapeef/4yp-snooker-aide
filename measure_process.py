@@ -263,7 +263,7 @@ class TestResults:
         # Calculate mean error
         self.mean_error = self.mean_of_list(error_distances)
         self.mean_error_normalised = self.mean_error / normalisation
-        self.max_error = max(error_distances)
+        self.max_error = max(error_distances + [0])
         self.max_error_normalised = self.max_error / normalisation
 
     def calculate_secondary_metrics(self):
@@ -594,7 +594,7 @@ class Test:
 
         return self.result
 
-    def test_pocket_detection(self, method_name, show=False):
+    def test_pocket_detection(self, method_name, show=False, custom_file_name=None):
         # method_name values can be "sam", "nn_corner"
         
         if method_name == "sam":
@@ -656,9 +656,13 @@ class Test:
                 method_time_start = time.time()
                 # print(f"Min table dims: {min_table_dims}")
 
-                pockets = pockets_eval.evaluate_from_evaluator(pockets_evaluator, image_file)
-                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
-                detected_points = find_edges.get_rect_corners(pocket_lines)
+                try:
+                    pockets = pockets_eval.evaluate_from_evaluator(pockets_evaluator, image_file)
+                    pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
+                    detected_points = find_edges.get_rect_corners(pocket_lines)
+                except AssertionError as e:
+                    # Not enough corners detected or smth
+                    detected_points = []
 
                 method_time = time.time() - method_time_start
                 one_off_time = method_time + pockets_evaluator_init_time
@@ -680,6 +684,9 @@ class Test:
         if show:
             print("Total results:")
             self.result.print_metrics()
+        
+        if not custom_file_name is None:
+            method_name = custom_file_name
 
         self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
 
@@ -1255,7 +1262,7 @@ def draw_end_to_end_graph(metric_name):
         result = result_object.load_from_file(file_name)
 
         for _metric_name in metric_names:
-            values[_metric_name].append(result[_metric_name] * 1000) # *1000 to convert from m to mm
+            values[_metric_name].append(result[_metric_name]) # *1000 to convert from m to mm
     
     draw_grouped_bar_chart(SET_NAMES, metric_names, metric_display_names, values, y_label, "lower right")
 
@@ -1268,13 +1275,20 @@ def draw_detection_demo():
     dummy_test = Test(2, "s10+_horizontal")
     dummy_test.draw(detected_points, expected_points, image_file, match_radius=match_radius, show=True)
 
-def draw_balls_training(metrics, loss_metrics=["loss"]):
+def draw_nn_training(nn_type, metrics, loss_metrics=["loss"]):
     epochs = {}
 
-    for set_num in range(1, 6):
+    if nn_type == "balls":
+        sets = [i for i in range(1, 6)]
+    elif nn_type == "pockets":
+        sets = [i for i in range(1, 3)]
+    else:
+        raise Exception(f"Bad nn_type: {nn_type}, must be either 'balls' or 'pockets'")
+
+    for set_num in sets:
         directory = os.path.join("./validation/supervised", f"set-{set_num}")
         
-        file_names = [filename for filename in os.listdir(directory) if filename.startswith("balls_training_")]
+        file_names = [filename for filename in os.listdir(directory) if filename.startswith(f"{nn_type}_training_")]
 
         for file_name in file_names:
             file_path = os.path.join(directory, file_name)
@@ -1342,7 +1356,7 @@ def draw_balls_training(metrics, loss_metrics=["loss"]):
 
     lines = [item for sublist in lines for item in sublist]
     labels = [item for sublist in labels for item in sublist]
-    plt.legend(lines, labels, loc='center right')
+    plt.legend(lines, labels, loc='upper right')
 
 
 def draw_single_set_graph(method_names, method_display_names, metric_name, metric_display_name, set_num=2):
@@ -1355,7 +1369,7 @@ def draw_single_set_graph(method_names, method_display_names, metric_name, metri
         result_object = TestResults()
         result = result_object.load_from_file(file_name)
 
-        values.append(result[metric_name] * 1000) # *1000 for mm
+        values.append(result[metric_name]) # *1000 for mm
 
     # Create bar chart
     plt.figure()
@@ -1448,7 +1462,7 @@ if __name__ == "__main__":
     # test_blur_radius()
     # test_hough_threshold()
     # test_all("projection")
-    # test_corner_detection(show=True)
+    # test_corner_detection(show=False)
     # test_end_to_end(reject_rotations=True)
 
     plt.close('all')
@@ -1482,6 +1496,7 @@ if __name__ == "__main__":
 
     # draw_detection_demo()
 
-    draw_balls_training(["training_loss", "f1_score", "mean_error_normalised"], ["loss", "loss_classifier", "loss_box_reg"])
+    # draw_nn_training("balls", ["training_loss", "f1_score", "mean_error_normalised"], ["loss", "loss_classifier", "loss_box_reg"])
+    draw_nn_training("pockets", ["training_loss", "mean_error_normalised"], ["loss", "loss_box_reg"])
 
     plt.show()

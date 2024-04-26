@@ -19,6 +19,37 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
 import nn_utils
+import measure_process
+
+
+def run_epoch_test(epoch, training_loss):
+    results = []
+
+    for set_num in range(1, 3):
+        # Get names of folders in this set
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        entries = os.listdir(directory)
+        device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
+        for device_name in device_names:
+            print(f"\n\nTrying set {set_num} with device '{device_name}'")
+            corner_labels_folder = os.path.join("./validation/supervised", f"set-{set_num}", device_name, "corner_labels")
+
+            if os.path.exists(corner_labels_folder):
+                test = measure_process.Test(set_num, device_name)
+                results.append(test.test_pocket_detection("nn_corner", custom_file_name=f"pockets_training_epoch_{epoch}"))
+            
+            else:
+                print("No corner labels for this set")
+
+        # Aggregate results
+        set_result = measure_process.TestResults()
+        set_result.aggregate_results(results)
+        set_result.training_loss = training_loss
+        print("Total results:")
+        set_result.print_metrics()
+        print("")
+        set_result.save_to_file(os.path.join(directory, f"pockets_training_epoch_{epoch}_results.json"))
 
 
 width = 512
@@ -67,4 +98,4 @@ num_epochs = 100
 
 # num_classes = 3
 
-nn_utils.train_nn(dataset, dataset_test, checkpoint_file, num_epochs)
+nn_utils.train_nn(dataset, dataset_test, checkpoint_file, num_epochs, test_function=run_epoch_test)
