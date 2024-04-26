@@ -56,3 +56,4 @@ if __name__ == "__main__":
     folder_name = './temp/calibration'
     purge_folder(folder_name)
     take_images(folder_name, 1)
+    

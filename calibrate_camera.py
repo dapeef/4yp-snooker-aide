@@ -100,3 +100,4 @@ if __name__ == "__main__":
     mtx, dist = checkerboard_calibrate('./calibration/s10+_horizontal', square_size=25, show=False)
 
     # undistort_image("./calibration/s10+_horizontal/20240310_115154(0).jpg", mtx, dist)
+    
