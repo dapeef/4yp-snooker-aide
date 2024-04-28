@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1363</width>
-    <height>1004</height>
+    <height>1033</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -163,6 +163,16 @@
                 </widget>
                </item>
               </layout>
+             </item>
+             <item>
+              <widget class="QPushButton" name="render_shot_button">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Render POV image</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -650,7 +660,7 @@
                 </font>
                </property>
                <property name="text">
-                <string>terrace.jpg</string>
+                <string>./images/terrace.jpg</string>
                </property>
               </widget>
              </item>

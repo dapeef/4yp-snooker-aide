@@ -5,6 +5,9 @@ from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QFont, QPolygon, QPolygo
 import sys
 import os
 import pooltool as pt
+from pooltool.ani.camera import camera_states
+from pooltool.ani.image import HDF5Images, ImageZip, NpyImages, image_stack
+from pooltool.ani.image.interface import FrameStepper
 import math
 import pooltool_test as pt_utils
 import time
@@ -189,9 +192,10 @@ class Ui(QMainWindow):
         self.update_pockets_checkbox.stateChanged.connect(self.update_pockets_checkbox_changed)
         self.auto_refresh_checkbox.stateChanged.connect(self.auto_refresh_checkbox_changed)
         self.auto_refresh_last_image = None
-        self.image_name.returnPressed.connect(self.load_button_clicked)
-        self.load_image_button.clicked.connect(self.load_button_clicked)
+        self.image_name.returnPressed.connect(self.load_image_clicked)
+        self.load_image_button.clicked.connect(self.load_image_clicked)
         self.load_webcam_button.clicked.connect(self.load_webcam_clicked)
+        self.render_shot_button.clicked.connect(self.render_shot)
 
         # Temp file for the webcam image
         self.temp_webcam_file_name = "./temp/webcam_image.jpg"
@@ -368,8 +372,11 @@ class Ui(QMainWindow):
         self.webcam_drop_down.currentIndexChanged.connect(self.change_camera)
         self.change_camera(self.current_camera_index)
 
+        # Start an instance of the pooltool ShotViewer (shows the GUI)
+        # self.interface = pt.ShotViewer()
+
         # Set up from initial image
-        self.load_button_clicked()
+        self.load_image_clicked()
 
 
     def new_calibration_clicked(self):
@@ -615,11 +622,14 @@ class Ui(QMainWindow):
         else:
             self.display_info("No cue ball found in image")
 
-    def load_button_clicked(self):
+    def load_image_clicked(self):
         # Load image
-        image_file = os.path.join("./images", self.image_name.text())
-        self.display_info(f"Loading image from image: {image_file}")
-        self.process_image(image_file, self.image_cal_drop_down.currentText())
+        image_file = self.image_name.text()
+        if os.path.exists(image_file):
+            self.display_info(f"Loading image from image: {image_file}")
+            self.process_image(image_file, self.image_cal_drop_down.currentText())
+        else:
+            self.display_info(f"Invalid file name: {image_file}")
     def load_webcam_clicked(self):
         self.display_info(f"Loading image from webcam: {self.available_cameras[self.current_camera_index]}")
         # Save webcam image
@@ -888,6 +898,39 @@ class Ui(QMainWindow):
 
         self.canvas_widget.update()
 
+    def _render_shot(self):
+        stepper = FrameStepper()
+
+        # Make an dump dir
+        path = "./temp"
+
+        # These camera states can be found in pooltool/ani/camera/camera_states. You can
+        # make your own by creating a new JSON in that directory. Reach out if you want to
+        # create a camera state from within the interactive interface (this is also
+        # possible).
+        for camera_state in [
+            "7_foot_overhead",
+            "7_foot_offcenter",
+        ]:
+            exporter = ImageZip(os.path.join(path, f"{camera_state}.zip"), ext="png")
+
+            imgs = image_stack(
+                system=self.shot,
+                interface=stepper,
+                size=(360 * 1.6, 360),
+                fps=10,
+                camera_state=camera_states[camera_state],
+                show_hud=False,
+                gray=False,
+            )
+            exporter.save(imgs)
+
+            # Verify the images can be read back
+            read_from_disk = exporter.read(exporter.path)
+            assert np.array_equal(imgs, read_from_disk)
+    def render_shot(self):
+        # Open up the shot in the GUI
+        self.interface.show(self.shot)
 
     def transform_distanceF(self, real_distance):
         table_width = self.shot.table.w
