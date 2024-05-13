@@ -365,11 +365,11 @@ class Test:
 
             print(f"\nAnalysing image: {image_file} with detection method: {method_name}")
 
-            mask_time_start = time.time()
             # Get masked image to reduce noise
             pockets = pockets_eval.evaluate_from_evaluator(pockets_evaluator, image_file)
             pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
             # find_edges.get_edges(image_file, pocket_lines, pocket_mask, 5)
+            mask_time_start = time.time()
             find_edges.save_masked_image(image_file, pocket_mask)
             masked_image_file = os.path.join("./temp", os.path.basename(image_file)[:-4] + "-masked.png")
             mask_time = time.time() - mask_time_start
@@ -1177,7 +1177,7 @@ def draw_detection_graph(metric_name):
 
             values[method_name].append(result[metric_name])
     
-    draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name])
+    draw_grouped_bar_chart(SET_NAMES, method_names, method_display_names, values, METRIC_NAME_MAP[metric_name], legend_location="center right")
 
 def draw_greyscale_comparison_graph(metric_name):
     method_names = ["hough_masked", "hough_grey_masked"]
@@ -1474,7 +1474,7 @@ if __name__ == "__main__":
     # draw_detection_graph("accuracy")
     # draw_detection_graph("f1_score")
     # draw_detection_graph("mean_error_normalised")
-    # draw_detection_graph("eval_time")
+    draw_detection_graph("eval_time")
 
     # draw_greyscale_comparison_graph("f1_score")
     # draw_blur_radius_graph("f1_score")
@@ -1497,6 +1497,6 @@ if __name__ == "__main__":
     # draw_detection_demo()
 
     # draw_nn_training("balls", ["training_loss", "f1_score", "mean_error_normalised"], ["loss", "loss_classifier", "loss_box_reg"])
-    draw_nn_training("pockets", ["training_loss", "mean_error_normalised"], ["loss", "loss_box_reg"])
+    # draw_nn_training("pockets", ["training_loss", "mean_error_normalised"], ["loss", "loss_box_reg"])
 
     plt.show()
