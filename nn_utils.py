@@ -321,8 +321,10 @@ def plot_img_bbox(img, target, title=""):
 
     fig, ax = plt.subplots(1,1)
     # plt.title(title)
-    fig.set_size_inches(5,5)
+    # fig.set_size_inches(5,5)
     ax.imshow(img)
+    ax.set_yticks([])
+    ax.set_xticks([])
     for i, box in enumerate(target['boxes']):
         color = colors[target["labels"][i]]
 

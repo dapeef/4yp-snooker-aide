@@ -442,6 +442,11 @@ class Test:
                 target = balls_eval_multiple.evaluate_from_evaluator(balls_evaluator, masked_image_file)
                 target = nn_utils.filter_boxes(target, max_results=100, confidence_threshold=0.5, remove_overlaps=False)
                 target = nn_utils.get_bbox_centers(target)
+                
+                # Draw
+                img = cv2.imread(image_file)
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                nn_utils.plot_img_bbox(img, target)
 
                 detected_points = target["centers"]
                 # print(f"ball positions: {detected_points}")
@@ -689,6 +694,70 @@ class Test:
             method_name = custom_file_name
 
         self.result.save_to_file(os.path.join(self.folder, f"{method_name}_results.json"))
+
+        return self.result
+    
+    def test_nn_pocket_detection(self, show=False):
+        pockets_evaluator_init_time_start = time.time()
+        pockets_evaluator = nn_utils.EvaluateNet("./checkpoints/pockets_model.pth", 2)
+        pockets_evaluator_init_time = time.time() - pockets_evaluator_init_time_start
+
+        results = []
+
+        for i, file in enumerate([name for name in os.listdir(self.folder) if name.endswith(".jpg")]):
+            is_good = True
+
+            image_file = os.path.join(self.folder, file)
+
+            print(f"\nAnalysing image: {image_file} for nn pocket success")
+            
+
+            method_time_start = time.time()
+            # print(f"Min table dims: {min_table_dims}")
+
+            try:
+                pockets = pockets_eval.evaluate_from_evaluator(pockets_evaluator, image_file)
+                pocket_lines, pocket_mask, max_dist = find_edges.get_lines_from_pockets(image_file, pockets)
+                detected_points = find_edges.get_rect_corners(pocket_lines)
+            except AssertionError as e:
+                is_good = False
+
+            method_time = time.time() - method_time_start
+            one_off_time = method_time + pockets_evaluator_init_time
+
+
+            results.append(TestResults())
+            results[i].calculate_initial_metrics([], [], 5, 5)
+
+            if len(detected_points) != 4:
+                is_good == False
+            
+            if is_good:
+                results[i].true_positives = 1
+                results[i].false_positives = 0
+                results[i].true_negatives = 0
+                results[i].false_negatives = 0
+            else:
+                results[i].true_positives = 0
+                results[i].false_positives = 0
+                results[i].true_negatives = 0
+                results[i].false_negatives = 1
+                
+            results[i].calculate_secondary_metrics()
+            results[i].eval_time = method_time
+            results[i].one_off_time = one_off_time
+            if show:
+                results[i].print_metrics()
+
+            # plt.show()
+
+        self.result = TestResults()
+        self.result.aggregate_results(results)
+        if show:
+            print("Total results:")
+            self.result.print_metrics()
+
+        self.result.save_to_file(os.path.join(self.folder, f"nn_success_rate_results.json"))
 
         return self.result
 
@@ -1130,6 +1199,27 @@ def test_corner_detection(show=False):
         set_result.print_metrics()
         set_result.save_to_file(os.path.join(directory, f"{method_name}_results.json"))
 
+def test_nn_corner_detection(show=False):
+    results = []
+
+    for set_num in range(1, 6):
+        # Get names of folders in this set
+        directory = os.path.join("./validation/supervised", f"set-{set_num}")
+        entries = os.listdir(directory)
+        device_names = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+
+        for device_name in device_names:
+            print(f"\n\nTrying set {set_num} with device '{device_name}'")
+
+            test = Test(set_num, device_name)
+
+            results.append(test.test_nn_pocket_detection(show=show))
+    
+    set_result = TestResults()
+    set_result.aggregate_results(results)
+    print("Total results:")
+    set_result.print_metrics()
+
 def test_end_to_end(reject_rotations=False):
     match_radii = [.1, .2, .1 , .1, .1]
 
@@ -1275,7 +1365,7 @@ def draw_detection_demo():
     dummy_test = Test(2, "s10+_horizontal")
     dummy_test.draw(detected_points, expected_points, image_file, match_radius=match_radius, show=True)
 
-def draw_nn_training(nn_type, metrics, loss_metrics=["loss"]):
+def draw_nn_training(nn_type, metrics, loss_metrics=["loss"], value_metrics=[]):
     epochs = {}
 
     if nn_type == "balls":
@@ -1339,24 +1429,33 @@ def draw_nn_training(nn_type, metrics, loss_metrics=["loss"]):
             line, label = axes[-1].get_legend_handles_labels()
             lines.append(line)
             labels.append(label)
+
+            # Draw number at end of line
+            if metric in value_metrics:
+                axes[-1].text(data["epochs"][-1] * 81/80, data[metric][-1], f"{data[metric][-1]:.3g}", ha='left', va='center', fontsize=8, color=line[0].get_color())
     
     if "training_loss" in data.keys():
         for loss_metric in loss_metrics:
             training_data = []
             for loss in data["training_loss"]:
                 training_data.append(loss[loss_metric])
+
             axes.append(ax.twinx())
             axes[-1].plot(data["epochs"], training_data, color=tableau_colors.pop(0), label=METRIC_NAME_MAP[loss_metric])
             axes[-1].yaxis.set_visible(False)
             line, label = axes[-1].get_legend_handles_labels()
             lines.append(line)
             labels.append(label)
+
+            # Draw number at end of line
+            if loss_metric in value_metrics:
+                axes[-1].text(data["epochs"][-1] * 81/80, training_data[-1], f"{training_data[-1]:.3g}", ha='left', va='center', fontsize=8, color=line[0].get_color())
     
     ax.set_xlabel("Epoch")
 
     lines = [item for sublist in lines for item in sublist]
     labels = [item for sublist in labels for item in sublist]
-    plt.legend(lines, labels, loc='upper right')
+    plt.legend(lines, labels, loc='center right')
 
 
 def draw_single_set_graph(method_names, method_display_names, metric_name, metric_display_name, set_num=2):
@@ -1383,7 +1482,7 @@ def draw_single_set_graph(method_names, method_display_names, metric_name, metri
     # Add text
     for bar in bars:
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=8)
+        # plt.text(bar.get_x() + bar.get_width()/2.0, height, f"{height:.3g}", ha='center', va='bottom', fontsize=8)
 
     # Add labels and title
     # plt.xlabel('Projection algorithm')
@@ -1442,8 +1541,8 @@ def draw_grouped_bar_chart(group_names, bar_names, bar_display_names, values, y_
 if __name__ == "__main__":
     start_time = time.time()
     
-    # test = Test(2, "laptop_camera")
-    # test.test_ball_detection(method_name="hough_masked", show=True)
+    # test = Test(3, "s10+_vertical")
+    # test.test_ball_detection(method_name="nn_masked", show=True)
 
     # test = Test(2, "s10+_horizontal")
     # test.test_projection("projection", show=True)
@@ -1463,6 +1562,7 @@ if __name__ == "__main__":
     # test_hough_threshold()
     # test_all("projection")
     # test_corner_detection(show=False)
+    # test_nn_corner_detection(show=True)
     # test_end_to_end(reject_rotations=True)
 
     plt.close('all')
@@ -1474,7 +1574,7 @@ if __name__ == "__main__":
     # draw_detection_graph("accuracy")
     # draw_detection_graph("f1_score")
     # draw_detection_graph("mean_error_normalised")
-    draw_detection_graph("eval_time")
+    # draw_detection_graph("eval_time")
 
     # draw_greyscale_comparison_graph("f1_score")
     # draw_blur_radius_graph("f1_score")
@@ -1496,7 +1596,7 @@ if __name__ == "__main__":
 
     # draw_detection_demo()
 
-    # draw_nn_training("balls", ["training_loss", "f1_score", "mean_error_normalised"], ["loss", "loss_classifier", "loss_box_reg"])
+    # draw_nn_training("balls", ["training_loss", "f1_score", "mean_error_normalised"], ["loss", "loss_classifier", "loss_box_reg"], ["f1_score", "mean_error_normalised", "loss"])
     # draw_nn_training("pockets", ["training_loss", "mean_error_normalised"], ["loss", "loss_box_reg"])
 
     plt.show()
